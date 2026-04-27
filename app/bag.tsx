@@ -45,7 +45,7 @@ export default function Bag() {
       <TopResourceBar player={player} title="BAG" />
 
       <View style={[styles.body, { height: bodyH }]}>
-        <View style={styles.tabsCol}>
+        <View style={[styles.tabsCol, { width: Math.min(80, width * 0.11) }]}>
           {([
             { id: "gear", label: "GEAR", icon: "🗡️", count: inventory.length },
             { id: "pets", label: "PETS", icon: "🐉", count: ownedPets.length },
@@ -63,7 +63,7 @@ export default function Bag() {
           ))}
         </View>
 
-        <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
           {tab === "gear" && (
             inventory.length === 0 ? (
               <Text style={styles.empty}>No items in bag. Visit the SHOP to buy gear.</Text>
@@ -195,13 +195,14 @@ function PetCard({ pet, active, onAction }: { pet: typeof PET_CATALOG[number]; a
 
 const styles = StyleSheet.create({
   body: { flexDirection: "row", padding: 6, gap: 6 },
-  tabsCol: { width: 90, gap: 4 },
+  tabsCol: { gap: 4 },
   tab: {
     backgroundColor: "#f0dba0",
     borderColor: "#7a4a25",
     borderWidth: 2,
     borderRadius: 6,
     paddingVertical: 8,
+    paddingHorizontal: 4,
     alignItems: "center",
     gap: 1,
   },

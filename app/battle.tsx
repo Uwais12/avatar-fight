@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Animated, Easing, Pressable } from "react-native";
+import { View, Text, StyleSheet, Animated, Easing, Pressable, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -14,6 +14,7 @@ import type { BattleEvent } from "../lib/types";
 
 export default function BattleScreen() {
   const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
   const router = useRouter();
   const player = useGame((s) => s.player);
   const last = useGame((s) => s.lastBattle);
@@ -115,6 +116,11 @@ export default function BattleScreen() {
   const playerCharId = characterIdFromSeed(player.avatarSeed);
   const oppCharId = characterIdFromSeed(opponent.avatarSeed);
 
+  // Available arena vertical space ≈ window - top inset - banners(~46) - hp(~24) - log(~70) - bottom inset.
+  const arenaH = Math.max(140, winH - insets.top - insets.bottom - 46 - 24 - 70 - 16);
+  const charSize = Math.min(190, Math.max(110, arenaH * 0.85));
+  const petSize = charSize * 0.7;
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <BambooBg />
@@ -150,16 +156,16 @@ export default function BattleScreen() {
         <View style={styles.fighterRow}>
           <Animated.View style={[styles.fighterLeft, { transform: [{ translateX: p1Shake }] }]}>
             {player.pet && petAssetFor(player.pet.id) && (
-              <Image source={petAssetFor(player.pet.id)!} style={styles.petLeftSprite} contentFit="contain" />
+              <Image source={petAssetFor(player.pet.id)!} style={{ width: petSize, height: petSize, marginRight: -petSize * 0.18 }} contentFit="contain" />
             )}
-            <Image source={CHARACTER_ASSETS[playerCharId]} style={styles.charLeftSprite} contentFit="contain" />
+            <Image source={CHARACTER_ASSETS[playerCharId]} style={{ width: charSize, height: charSize }} contentFit="contain" />
             {floatNumbers.filter(f => f.side === "p1").map(f => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
           </Animated.View>
 
           <Animated.View style={[styles.fighterRight, { transform: [{ translateX: p2Shake }] }]}>
-            <Image source={CHARACTER_ASSETS[oppCharId]} style={[styles.charRightSprite, { transform: [{ scaleX: -1 }] }]} contentFit="contain" />
+            <Image source={CHARACTER_ASSETS[oppCharId]} style={{ width: charSize, height: charSize, transform: [{ scaleX: -1 }] }} contentFit="contain" />
             {opponent.pet && petAssetFor(opponent.pet.id) && (
-              <Image source={petAssetFor(opponent.pet.id)!} style={[styles.petRightSprite, { transform: [{ scaleX: -1 }] }]} contentFit="contain" />
+              <Image source={petAssetFor(opponent.pet.id)!} style={{ width: petSize, height: petSize, marginLeft: -petSize * 0.18, transform: [{ scaleX: -1 }] }} contentFit="contain" />
             )}
             {floatNumbers.filter(f => f.side === "p2").map(f => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
           </Animated.View>
@@ -369,7 +375,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    paddingBottom: 30,
+    paddingBottom: 12,
   },
   fighterLeft: {
     flexDirection: "row",
@@ -386,24 +392,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     position: "relative",
-  },
-  charLeftSprite: {
-    width: 150,
-    height: 150,
-  },
-  charRightSprite: {
-    width: 150,
-    height: 150,
-  },
-  petLeftSprite: {
-    width: 110,
-    height: 110,
-    marginRight: -20,
-  },
-  petRightSprite: {
-    width: 110,
-    height: 110,
-    marginLeft: -20,
   },
   logPanel: {
     backgroundColor: "rgba(40,28,12,0.85)",

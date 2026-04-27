@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, ImageSourcePropType } from "react-native";
 import { Image } from "expo-image";
 import Svg, { Defs, LinearGradient, Stop, Rect, Ellipse, Pattern } from "react-native-svg";
-import { characterAssets, petAssets, type CharClass, type PetKind, weaponAssets } from "../lib/assets";
+import { characterAssets, petAssets, type CharClass, type PetKind, weaponAssets, comboAssetFor } from "../lib/assets";
 
 type Props = {
   charClass?: CharClass | string | null;
@@ -42,8 +42,17 @@ export function CharacterShowcase({
 }: Props) {
   const cls = charClass ?? player?.charClass ?? "knight";
   const petK = petKind ?? player?.pet?.kind ?? player?.pet?.id;
+
+  // Prefer the composite combo image (full-body chibi already wearing the gear).
+  // Falls back to base character if armor/weapon combo isn't covered.
+  const armorKey = player?.equipment?.chest?.iconKey ?? null;
+  const weaponKey = player?.equipment?.weapon?.iconKey ?? null;
+  const combo = comboAssetFor(cls, armorKey, weaponKey);
   const charSrc: ImageSourcePropType | undefined =
-    cls && characterAssets[cls] ? characterAssets[cls] : characterAssets.knight;
+    (combo as ImageSourcePropType) ??
+    (cls && characterAssets[cls] ? characterAssets[cls] : characterAssets.knight);
+  const hasComboArt = !!combo &&
+    !(armorKey == null && weaponKey == null);
   const petSrc: ImageSourcePropType | undefined =
     petK && petAssets[petK] ? petAssets[petK] : undefined;
 
@@ -83,7 +92,7 @@ export function CharacterShowcase({
           contentFit="contain"
           cachePolicy="memory-disk"
         />
-        {player?.equipment?.weapon && weaponAssets[player.equipment.weapon.iconKey] && (
+        {!hasComboArt && player?.equipment?.weapon && weaponAssets[player.equipment.weapon.iconKey] && (
           <Image
             source={weaponAssets[player.equipment.weapon.iconKey]}
             style={{

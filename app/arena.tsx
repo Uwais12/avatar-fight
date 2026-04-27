@@ -85,7 +85,7 @@ export default function Arena() {
               <Text style={styles.refreshIcon}>↻</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.opponentList} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.opponentList} showsVerticalScrollIndicator={false}>
             {opponents.map((o) => (
               <OpponentCard
                 key={o.id}
@@ -115,10 +115,10 @@ export default function Arena() {
 
         <View style={[styles.rightCol, { width: rightW }]}>
           {selected && (
-            <ScrollView contentContainerStyle={{ gap: 4 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.enemyName}>{selected.name}</Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 4, paddingBottom: 6 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.enemyName} numberOfLines={1}>{selected.name}</Text>
               <Text style={styles.enemyMeta}>{classLabel(selected.charClass)} · Lv {selected.level}</Text>
-              {selected.guild && <Text style={styles.enemyGuild}>🏰 {selected.guild}</Text>}
+              {selected.guild && <Text style={styles.enemyGuild} numberOfLines={1}>🏰 {selected.guild}</Text>}
               <PowerBox value={powerOf(selected)} />
               <StatBadge label="STR" value={totalStats(selected).str} />
               <StatBadge label="AGL" value={totalStats(selected).agl} />
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderColor: "#7a4a25",
     borderWidth: 2,
     borderRadius: 6,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: "center",
     marginTop: 2,
   },

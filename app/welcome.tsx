@@ -39,7 +39,11 @@ export default function Welcome() {
     router.replace("/");
   };
 
-  const cardW = Math.min(120, (width - 80) / 5);
+  // Title eats ~52px, padding ~24, so usable ~ height-76
+  const usableH = height - 76;
+  const previewW = Math.min(220, Math.max(160, width * 0.32));
+  const previewImgSize = Math.min(previewW - 40, usableH * 0.55);
+  const cardSize = Math.min(80, (width - previewW - 80) / 5 - 8);
 
   return (
     <ParchmentBg style={styles.root}>
@@ -49,10 +53,10 @@ export default function Welcome() {
       </View>
 
       <View style={styles.middle}>
-        <View style={styles.previewBox}>
+        <View style={[styles.previewBox, { width: previewW }]}>
           <Image
             source={CHARACTER_ASSETS[picked]}
-            style={{ width: 160, height: 160 }}
+            style={{ width: previewImgSize, height: previewImgSize }}
             contentFit="contain"
           />
           <Text style={styles.previewLabel}>{CLASSES.find((c) => c.id === picked)?.label}</Text>
@@ -72,7 +76,7 @@ export default function Welcome() {
             autoCorrect={false}
           />
 
-          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>CHOOSE CLASS</Text>
+          <Text style={[styles.fieldLabel, { marginTop: 10 }]}>CHOOSE CLASS</Text>
           <View style={styles.classRow}>
             {CLASSES.map((c) => (
               <Pressable
@@ -81,9 +85,9 @@ export default function Welcome() {
                   setPicked(c.id);
                   Haptics.selectionAsync().catch(() => {});
                 }}
-                style={[styles.classCard, { width: cardW }, picked === c.id && styles.classCardActive]}
+                style={[styles.classCard, { width: cardSize }, picked === c.id && styles.classCardActive]}
               >
-                <Image source={CHARACTER_ASSETS[c.id]} style={{ width: 50, height: 50 }} contentFit="contain" />
+                <Image source={CHARACTER_ASSETS[c.id]} style={{ width: cardSize - 14, height: cardSize - 14 }} contentFit="contain" />
                 <Text style={styles.className}>{c.label}</Text>
               </Pressable>
             ))}
@@ -101,12 +105,12 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   titleWrap: {
-    paddingTop: 14,
+    paddingTop: 10,
     paddingBottom: 4,
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "900",
     color: "#7a1f1f",
     letterSpacing: 4,
@@ -115,7 +119,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#7a4a25",
     fontWeight: "700",
     letterSpacing: 1.5,
@@ -123,18 +127,17 @@ const styles = StyleSheet.create({
   middle: {
     flex: 1,
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
     alignItems: "stretch",
   },
   previewBox: {
-    width: 200,
-    backgroundColor: "rgba(246, 232, 190, 0.7)",
+    backgroundColor: "rgba(246, 232, 190, 0.85)",
     borderWidth: 2.5,
     borderColor: "#7a4a25",
     borderRadius: 8,
-    padding: 10,
+    padding: 8,
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
@@ -152,6 +155,7 @@ const styles = StyleSheet.create({
   right: {
     flex: 1,
     gap: 4,
+    justifyContent: "center",
   },
   fieldLabel: {
     fontSize: 11,
@@ -173,17 +177,18 @@ const styles = StyleSheet.create({
   classRow: {
     flexDirection: "row",
     gap: 6,
-    flexWrap: "wrap",
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
   classCard: {
+    aspectRatio: 1,
     backgroundColor: "#f6e8be",
     borderWidth: 2,
     borderColor: "#7a4a25",
     borderRadius: 6,
-    padding: 6,
+    padding: 4,
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
+    gap: 1,
   },
   classCardActive: {
     backgroundColor: "#fff0c8",
@@ -191,7 +196,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   className: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: "900",
     color: "#3a2812",
   },

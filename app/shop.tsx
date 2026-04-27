@@ -77,7 +77,7 @@ export default function Shop() {
       <TopResourceBar player={player} title="SHOP" />
 
       <View style={[styles.body, { height: bodyH }]}>
-        <View style={styles.tabsCol}>
+        <View style={[styles.tabsCol, { width: Math.min(80, width * 0.11) }]}>
           {(["weapons", "armor", "pets"] as Tab[]).map((t) => (
             <Pressable
               key={t}
@@ -90,7 +90,7 @@ export default function Shop() {
           ))}
         </View>
 
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {items.map((item: any) => {
             const owned = isOwned(item);
             const canAfford = player.gold >= item.price;
@@ -187,13 +187,14 @@ function bonusLabel(bonus: any): string {
 
 const styles = StyleSheet.create({
   body: { flexDirection: "row", padding: 6, gap: 6 },
-  tabsCol: { width: 90, gap: 4 },
+  tabsCol: { gap: 4 },
   tab: {
     backgroundColor: "#f0dba0",
     borderColor: "#7a4a25",
     borderWidth: 2,
     borderRadius: 6,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     alignItems: "center",
     gap: 2,
   },
@@ -214,9 +215,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 6,
     paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingVertical: 5,
     gap: 8,
-    minWidth: 280,
   },
   rowSelected: {
     backgroundColor: "#fff0c8",
@@ -236,8 +236,8 @@ const styles = StyleSheet.create({
   priceText: { color: "#3a2812", fontWeight: "900", fontSize: 12 },
   ownedTag: { color: "#3a8c3a", fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
   detail: {
-    width: 175,
-    backgroundColor: "rgba(246, 232, 190, 0.8)",
+    width: 160,
+    backgroundColor: "rgba(246, 232, 190, 0.85)",
     borderColor: "#7a4a25",
     borderWidth: 2,
     borderRadius: 6,

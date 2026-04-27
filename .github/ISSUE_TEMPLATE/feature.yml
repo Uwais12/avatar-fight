@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something new for the game
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like to see?
+      placeholder: "Daily quests with mini-bosses..."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does this matter to you?
+      description: The use case — more useful than a strict spec
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+    validations:
+      required: false

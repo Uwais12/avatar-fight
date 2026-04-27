@@ -1,0 +1,44 @@
+name: Bug report
+description: Something isn't working in the beta build
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: One or two sentences describing what went wrong
+      placeholder: "I tapped BUY on the sword and the app froze..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Tap SHOP
+        3. ...
+    validations:
+      required: false
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: iPhone 14 Pro, iOS 17.5
+  - type: input
+    id: build
+    attributes:
+      label: Build version
+      placeholder: TestFlight build 7, or "Expo Go" if you ran it via QR
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots / video
+      description: Drag and drop here — they really help

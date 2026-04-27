@@ -11,9 +11,8 @@ import { ParchmentBg } from "../components/ParchmentBg";
 import { TopResourceBar } from "../components/TopResourceBar";
 import { BottomNav } from "../components/BottomNav";
 import { CharacterShowcase } from "../components/CharacterShowcase";
-import { PowerBox } from "../components/StatBadge";
 import { EquipmentSlot } from "../components/EquipmentSlot";
-import { totalStats, powerOf, classLabel, xpForLevel, SLOTS } from "../lib/game";
+import { totalStats, powerOf, classLabel, xpForLevel } from "../lib/game";
 import { petAssetFor } from "../lib/assets";
 
 export default function Home() {
@@ -50,13 +49,13 @@ export default function Home() {
   const navH = 38;
   const bodyH = height - headerH - navH;
 
-  const leftW = Math.round(width * 0.26);
-  const rightW = Math.round(width * 0.28);
+  const leftW = Math.round(width * 0.22);
+  const rightW = Math.round(width * 0.22);
   const gap = 6;
   const centerW = width - leftW - rightW - gap * 2 - 12; // 12 = horizontal padding
 
-  // 3-col grid: rightW - panel padding(12) - 2 gaps(8) = available for cells, /3 = cell width
-  const slotSize = Math.max(38, Math.min(56, Math.floor((rightW - 28) / 3) - 4));
+  // 1-col stack of 3 (weapon, chest, pet) — bigger slots since fewer cells
+  const slotSize = Math.min(70, rightW - 26);
 
   const saveName = () => {
     setName(nameDraft.trim() || "Hero");
@@ -73,7 +72,10 @@ export default function Home() {
       <View style={[styles.body, { height: bodyH, gap }]}>
         {/* LEFT: power + stats */}
         <View style={[styles.col, { width: leftW }]}>
-          <PowerBox value={power} />
+          <View style={styles.powerBox}>
+            <Text style={styles.powerLabel}>POWER</Text>
+            <Text style={styles.powerValue}>{power.toLocaleString()}</Text>
+          </View>
 
           <View style={styles.statsGrid}>
             <StatChip label="STR" value={stats.str} accent="#c44030" />
@@ -144,19 +146,26 @@ export default function Home() {
         <View style={[styles.col, { width: rightW }]}>
           <View style={styles.panel}>
             <Text style={styles.panelTitle}>EQUIPMENT</Text>
-            <View style={styles.equipGrid}>
-              {SLOTS.map((slot) => (
-                <View key={slot} style={[styles.equipCell, { width: slotSize + 4 }]}>
-                  <EquipmentSlot
-                    slot={slot}
-                    equipment={player.equipment[slot]}
-                    size={slotSize}
-                    onPress={() => router.push("/bag")}
-                  />
-                  <Text style={styles.equipLabel} numberOfLines={1}>{slot.toUpperCase()}</Text>
-                </View>
-              ))}
-              <View style={[styles.equipCell, { width: slotSize + 4 }]}>
+            <View style={styles.equipStack}>
+              <View style={styles.equipCell}>
+                <EquipmentSlot
+                  slot="weapon"
+                  equipment={player.equipment.weapon}
+                  size={slotSize}
+                  onPress={() => router.push("/bag")}
+                />
+                <Text style={styles.equipLabel}>WEAPON</Text>
+              </View>
+              <View style={styles.equipCell}>
+                <EquipmentSlot
+                  slot="chest"
+                  equipment={player.equipment.chest}
+                  size={slotSize}
+                  onPress={() => router.push("/bag")}
+                />
+                <Text style={styles.equipLabel}>ARMOR</Text>
+              </View>
+              <View style={styles.equipCell}>
                 <Pressable
                   onPress={() => router.push(player.pet ? "/bag" : "/shop")}
                   style={[styles.petSlot, { width: slotSize, height: slotSize, borderColor: player.pet ? "#a050c0" : "#7a4a25" }]}
@@ -167,7 +176,7 @@ export default function Home() {
                     <Text style={[styles.petFallback, { fontSize: slotSize * 0.45 }]}>🐾</Text>
                   )}
                 </Pressable>
-                <Text style={styles.equipLabel} numberOfLines={1}>PET</Text>
+                <Text style={styles.equipLabel}>PET</Text>
               </View>
             </View>
           </View>
@@ -239,6 +248,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 6,
     flex: 1,
+  },
+  powerBox: {
+    borderWidth: 2,
+    borderColor: "#d4a23a",
+    backgroundColor: "#f6e8be",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignItems: "center",
+  },
+  powerLabel: {
+    color: "#a87838",
+    fontWeight: "900",
+    fontSize: 9,
+    letterSpacing: 1.4,
+  },
+  powerValue: {
+    color: "#2a1810",
+    fontWeight: "900",
+    fontSize: 18,
+    lineHeight: 20,
   },
   panelTitle: {
     color: "#7a1f1f",
@@ -336,11 +366,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.5,
   },
-  equipGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    justifyContent: "center",
+  equipStack: {
+    gap: 8,
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "space-around",
+    paddingVertical: 4,
   },
   equipCell: {
     alignItems: "center",
@@ -381,36 +412,36 @@ const chipStyles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "stretch",
-    height: 26,
+    height: 22,
     width: "48%",
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: "#7a4a25",
-    borderRadius: 5,
+    borderRadius: 4,
     overflow: "hidden",
   },
   label: {
-    paddingHorizontal: 6,
-    minWidth: 38,
+    paddingHorizontal: 4,
+    minWidth: 32,
     alignItems: "center",
     justifyContent: "center",
   },
   labelText: {
     color: "#fff8d8",
     fontWeight: "900",
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontSize: 10,
+    letterSpacing: 0.4,
   },
   value: {
     backgroundColor: "#fff8d8",
     flex: 1,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
   },
   valueText: {
     color: "#3a2812",
     fontWeight: "900",
-    fontSize: 13,
+    fontSize: 12,
   },
 });
 

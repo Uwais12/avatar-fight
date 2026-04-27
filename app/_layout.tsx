@@ -27,6 +27,7 @@ export default function RootLayout() {
           headerTintColor: theme.ink,
           headerTitleStyle: { fontWeight: "900" },
           contentStyle: { backgroundColor: theme.parchment },
+          animation: "none",
         }}
       >
         <Stack.Screen name="welcome" options={{ headerShown: false }} />

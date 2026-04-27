@@ -155,14 +155,39 @@ export const COMBO_ASSETS: Record<string, ImageSourcePropType> = {
   "vampire__plate__sword": require("../assets/generated/combos/vampire__plate__sword.png"),
 };
 
+// Aliases for legacy/unsupported iconKeys → nearest combo art.
+// If something is equipped at all, render *some* armor/weapon rather than empty-handed.
+const ARMOR_ALIASES: Record<string, string> = {
+  // recognized
+  leather: "leather", chain: "chain", plate: "plate", robe: "robe",
+  // legacy makeEquipment / lucide names
+  Shirt: "leather", chest: "leather",
+};
+const WEAPON_ALIASES: Record<string, string> = {
+  sword: "sword", bow: "bow", staff: "staff",
+  // shop weapons not in combo set → map to closest visual
+  dagger: "sword", axe: "sword", mace: "sword",
+  // legacy makeEquipment names
+  Swords: "sword", weapon: "sword",
+};
+
+function resolveArmor(key?: string | null): string {
+  if (!key) return "none";
+  return ARMOR_ALIASES[key] ?? "leather"; // anything we don't recognize: assume basic armor
+}
+function resolveWeapon(key?: string | null): string {
+  if (!key) return "none";
+  return WEAPON_ALIASES[key] ?? "sword"; // assume sword for unrecognized weapons
+}
+
 export function comboAssetFor(
   charClass: string | undefined | null,
   armorIconKey?: string | null,
   weaponIconKey?: string | null,
 ): ImageSourcePropType | null {
   const cls = (charClass ?? "knight") as CharacterId;
-  const a = COMBO_ARMORS.has(armorIconKey ?? "") ? (armorIconKey as string) : "none";
-  const w = COMBO_WEAPONS.has(weaponIconKey ?? "") ? (weaponIconKey as string) : "none";
+  const a = resolveArmor(armorIconKey);
+  const w = resolveWeapon(weaponIconKey);
   if (a === "none" && w === "none") {
     return CHARACTER_ASSETS[cls] ?? CHARACTER_ASSETS.knight;
   }

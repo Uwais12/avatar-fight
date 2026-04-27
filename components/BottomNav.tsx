@@ -22,8 +22,9 @@ export function BottomNav() {
           <Pressable
             key={tab.id}
             onPress={() => {
+              if (active) return;
               Haptics.selectionAsync().catch(() => {});
-              router.push(tab.route as never);
+              router.replace(tab.route as never);
             }}
             style={[styles.tab, active && styles.tabActive]}
           >

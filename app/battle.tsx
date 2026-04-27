@@ -9,7 +9,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect, Polygon } from "react-native-svg
 import { useGame } from "../lib/store";
 import { theme } from "../lib/theme";
 import { applyLoss, applyWinReward, totalStats } from "../lib/game";
-import { CHARACTER_ASSETS, characterIdFromSeed, petAssetFor } from "../lib/assets";
+import { CHARACTER_ASSETS, characterIdFromSeed, petAssetFor, comboAssetFor } from "../lib/assets";
 import type { BattleEvent } from "../lib/types";
 
 export default function BattleScreen() {
@@ -113,8 +113,16 @@ export default function BattleScreen() {
   }
 
   const won = last.winner === "p1";
-  const playerCharId = characterIdFromSeed(player.avatarSeed);
-  const oppCharId = characterIdFromSeed(opponent.avatarSeed);
+  const playerSrc = comboAssetFor(
+    player.charClass ?? characterIdFromSeed(player.avatarSeed),
+    player.equipment?.chest?.iconKey,
+    player.equipment?.weapon?.iconKey,
+  ) ?? CHARACTER_ASSETS[characterIdFromSeed(player.avatarSeed)];
+  const oppSrc = comboAssetFor(
+    opponent.charClass ?? characterIdFromSeed(opponent.avatarSeed),
+    opponent.equipment?.chest?.iconKey,
+    opponent.equipment?.weapon?.iconKey,
+  ) ?? CHARACTER_ASSETS[characterIdFromSeed(opponent.avatarSeed)];
 
   // Available arena vertical space ≈ window - top inset - banners(~46) - hp(~24) - log(~70) - bottom inset.
   const arenaH = Math.max(140, winH - insets.top - insets.bottom - 46 - 24 - 70 - 16);
@@ -158,12 +166,12 @@ export default function BattleScreen() {
             {player.pet && petAssetFor(player.pet.id) && (
               <Image source={petAssetFor(player.pet.id)!} style={{ width: petSize, height: petSize, marginRight: -petSize * 0.18 }} contentFit="contain" />
             )}
-            <Image source={CHARACTER_ASSETS[playerCharId]} style={{ width: charSize, height: charSize }} contentFit="contain" />
+            <Image source={playerSrc} style={{ width: charSize, height: charSize }} contentFit="contain" />
             {floatNumbers.filter(f => f.side === "p1").map(f => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
           </Animated.View>
 
           <Animated.View style={[styles.fighterRight, { transform: [{ translateX: p2Shake }] }]}>
-            <Image source={CHARACTER_ASSETS[oppCharId]} style={{ width: charSize, height: charSize, transform: [{ scaleX: -1 }] }} contentFit="contain" />
+            <Image source={oppSrc} style={{ width: charSize, height: charSize, transform: [{ scaleX: -1 }] }} contentFit="contain" />
             {opponent.pet && petAssetFor(opponent.pet.id) && (
               <Image source={petAssetFor(opponent.pet.id)!} style={{ width: petSize, height: petSize, marginLeft: -petSize * 0.18, transform: [{ scaleX: -1 }] }} contentFit="contain" />
             )}

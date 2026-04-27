@@ -1,15 +1,24 @@
 import React from "react";
 import Svg, { Defs, Pattern, Rect, Path, LinearGradient, Stop } from "react-native-svg";
 import { View, StyleSheet, ViewStyle, StyleProp } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  noInsets?: boolean;
 };
 
-export function ParchmentBg({ children, style }: Props) {
+export function ParchmentBg({ children, style, noInsets }: Props) {
+  const insets = useSafeAreaInsets();
+  const insetStyle: ViewStyle = noInsets ? {} : {
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, insetStyle, style]}>
       <Svg style={StyleSheet.absoluteFill} preserveAspectRatio="xMidYMid slice">
         <Defs>
           <Pattern id="weave" patternUnits="userSpaceOnUse" width="18" height="18">

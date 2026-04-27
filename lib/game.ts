@@ -210,8 +210,11 @@ export function simulateBattle(p1: Player, p2: Player, seed = Math.random() * 1e
       }
 
       const mitigation = defenderStats.agl / (defenderStats.agl + attackerStats.str * 1.2 + 80);
-      const variance = 0.85 + r() * 0.30;
-      const baseDamage = attackerStats.str * (1 - mitigation) * variance;
+      // wider variance so weaker players still occasionally upset
+      const variance = 0.70 + r() * 0.55; // 0.70x to 1.25x
+      // small lucky-strike chance (~6%) gives 1.5x damage on top
+      const luckyStrike = r() < 0.06 ? 1.5 : 1;
+      const baseDamage = attackerStats.str * (1 - mitigation) * variance * luckyStrike;
       const critChance = Math.min(0.30, 0.05 + Math.max(0, attackerStats.spd - defenderStats.spd) / (defenderStats.spd + 200));
       const isCrit = r() < critChance;
       const damage = Math.max(1, Math.round(baseDamage * (isCrit ? 1.7 : 1)));

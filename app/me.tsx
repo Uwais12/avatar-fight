@@ -39,7 +39,7 @@ export default function Me() {
   };
 
   return (
-    <ParchmentBg style={[styles.root, { paddingTop: insets.top }]}>
+    <ParchmentBg style={styles.root}>
       <TopResourceBar player={player} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>

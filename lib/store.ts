@@ -110,16 +110,21 @@ export const useGame = create<State>()(
         }),
       setClass: (charClass: import("./types").CharClass) =>
         set({ player: { ...get().player, charClass } }),
-      onboard: (name: string, charClass: import("./types").CharClass) =>
+      onboard: (name: string, charClass: import("./types").CharClass) => {
+        const cleanName = name.trim() || "Hero";
+        const isTestAccount = cleanName.toLowerCase() === "uwii";
         set({
           player: {
             ...get().player,
-            name: name.trim() || "Hero",
+            name: cleanName,
             charClass,
             onboarded: true,
+            gold: isTestAccount ? 5000 : 100,
+            crystals: isTestAccount ? 20 : 0,
             avatarSeed: `${charClass}-${Math.random().toString(36).slice(2, 8)}`,
           },
-        }),
+        });
+      },
       buyEquipment: (eq: Equipment, price: number) => {
         const cur = get().player;
         if (cur.gold < price) return false;

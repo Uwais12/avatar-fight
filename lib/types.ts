@@ -19,15 +19,20 @@ export type Equipment = {
   iconKey: string;
 };
 
+export type PetKind = "red-dragon" | "blue-dragon" | "wolf" | "tiger" | "eagle";
+
 export type Pet = {
   id: string;
   name: string;
   spriteKey: string;
+  kind?: PetKind;
   bonusStats: Stats;
   level: number;
 };
 
 export type AvatarStyle = "lorelei" | "adventurer" | "micah" | "personas" | "notionists";
+
+export type CharClass = "knight" | "ninja" | "mage" | "archer" | "vampire";
 
 export type Player = {
   id: string;
@@ -40,6 +45,8 @@ export type Player = {
   losses: number;
   avatarSeed: string;
   avatarStyle: AvatarStyle;
+  charClass?: CharClass;
+  onboarded?: boolean;
   equipment: Record<EquipSlot, Equipment | null>;
   pet: Pet | null;
   guild?: string;

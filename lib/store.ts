@@ -7,17 +7,19 @@ import type { AvatarStyle, BattleEvent, Equipment, EquipSlot, Pet, Player, Tier 
 
 const NEW_PLAYER: Player = {
   id: "me",
-  name: "Hero",
+  name: "",
   level: 1,
   xp: 0,
-  gold: 250,
+  gold: 100,
   crystals: 0,
   wins: 0,
   losses: 0,
   avatarSeed: "hero-1",
   avatarStyle: "lorelei",
+  charClass: "knight",
+  onboarded: false,
   equipment: {
-    weapon: makeEquipment("weapon", 1 as Tier),
+    weapon: null,
     helmet: null,
     chest: null,
     gloves: null,
@@ -52,6 +54,8 @@ type State = {
   setPet: (pet: Pet | null) => void;
   setLastBattle: (r: LastBattle) => void;
   reset: () => void;
+  setClass: (charClass: import("./types").CharClass) => void;
+  onboard: (name: string, charClass: import("./types").CharClass) => void;
 };
 
 export const useGame = create<State>()(
@@ -97,6 +101,18 @@ export const useGame = create<State>()(
           opponents: [],
           selectedOpponentId: null,
           lastBattle: null,
+        }),
+      setClass: (charClass: import("./types").CharClass) =>
+        set({ player: { ...get().player, charClass } }),
+      onboard: (name: string, charClass: import("./types").CharClass) =>
+        set({
+          player: {
+            ...get().player,
+            name: name.trim() || "Hero",
+            charClass,
+            onboarded: true,
+            avatarSeed: `${charClass}-${Math.random().toString(36).slice(2, 8)}`,
+          },
         }),
     }),
     {

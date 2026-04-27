@@ -1,26 +1,20 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import { useGame } from "../lib/store";
 import { theme } from "../lib/theme";
-import { Parchment } from "../components/Parchment";
-import { WoodButton } from "../components/WoodButton";
-import { equipBonus, makeEquipment } from "../lib/data";
+import { ParchmentBg } from "../components/ParchmentBg";
+import { TopResourceBar } from "../components/TopResourceBar";
+import { BottomNav } from "../components/BottomNav";
+import { EquipmentSlot } from "../components/EquipmentSlot";
+import { makeEquipment } from "../lib/data";
 import { TIER_NAMES, TIER_COLORS } from "../lib/types";
 import { tierUpgradeCost, SLOTS } from "../lib/game";
 import type { EquipSlot, Tier } from "../lib/types";
 
-const SLOT_ICONS: Record<EquipSlot, string> = {
-  weapon: "⚔️",
-  helmet: "🪖",
-  chest: "🥋",
-  gloves: "🧤",
-  boots: "🥾",
-  accessory: "💍",
-};
-
-const SLOT_LABELS: Record<EquipSlot, string> = {
+const SLOT_LABEL: Record<EquipSlot, string> = {
   weapon: "Weapon",
   helmet: "Helmet",
   chest: "Chest",
@@ -30,6 +24,7 @@ const SLOT_LABELS: Record<EquipSlot, string> = {
 };
 
 export default function Shop() {
+  const insets = useSafeAreaInsets();
   const player = useGame((s) => s.player);
   const setEquipment = useGame((s) => s.setEquipment);
   const updatePlayer = useGame((s) => s.updatePlayer);
@@ -43,7 +38,7 @@ export default function Shop() {
     }
     const cost = tierUpgradeCost(curTier);
     if (player.gold < cost.gold || player.crystals < cost.crystals) {
-      Alert.alert("Not enough", `Need ${cost.gold} 💰 and ${cost.crystals} 💎`);
+      Alert.alert("Not enough", `Need ${cost.gold} 🪙 and ${cost.crystals} 💎`);
       return;
     }
     updatePlayer((p) => ({ ...p, gold: p.gold - cost.gold, crystals: p.crystals - cost.crystals }));
@@ -53,93 +48,95 @@ export default function Shop() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.coinRow}>
-        <Text style={styles.coin}>💰 {player.gold}</Text>
-        <Text style={styles.coin}>💎 {player.crystals}</Text>
-      </View>
+    <ParchmentBg style={[styles.root, { paddingTop: insets.top }]}>
+      <TopResourceBar player={player} />
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.h1}>FORGE / SHOP</Text>
 
-      {SLOTS.map((slot) => {
-        const eq = player.equipment[slot];
-        const curTier = (eq?.tier ?? 0) as Tier;
-        const cost = tierUpgradeCost(curTier);
-        const nextTier = (curTier + 1) as Tier;
-        const canAfford = player.gold >= cost.gold && player.crystals >= cost.crystals;
-        const maxed = curTier >= 5;
-        return (
-          <Parchment key={slot} style={{ marginBottom: 10 }}>
-            <View style={styles.row}>
-              <Text style={styles.slotIcon}>{SLOT_ICONS[slot]}</Text>
+        {SLOTS.map((slot) => {
+          const eq = player.equipment[slot];
+          const curTier = (eq?.tier ?? 0) as Tier;
+          const cost = tierUpgradeCost(curTier);
+          const nextTier = (curTier + 1) as Tier;
+          const canAfford = player.gold >= cost.gold && player.crystals >= cost.crystals;
+          const maxed = curTier >= 5;
+          return (
+            <View key={slot} style={styles.row}>
+              <EquipmentSlot slot={slot} equipment={eq} size={56} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.slotLabel}>{SLOT_LABELS[slot]}</Text>
-                <Text style={[styles.slotName, { color: TIER_COLORS[curTier] }]}>
+                <Text style={styles.slotLabel}>{SLOT_LABEL[slot]}</Text>
+                <Text style={[styles.itemName, { color: TIER_COLORS[curTier] }]}>
                   {eq ? eq.name : "(empty)"}
                 </Text>
                 {!maxed && (
                   <Text style={styles.upgradeHint}>
-                    → {TIER_NAMES[nextTier]}  ({cost.gold} 💰{cost.crystals ? ` + ${cost.crystals} 💎` : ""})
+                    → {TIER_NAMES[nextTier]}  {cost.gold} 🪙{cost.crystals ? ` + ${cost.crystals} 💎` : ""}
                   </Text>
                 )}
               </View>
-              <WoodButton
-                small
-                label={maxed ? "MAX" : "UPGRADE"}
+              <Pressable
+                style={[styles.upgradeBtn, (maxed || !canAfford) && styles.upgradeBtnDisabled]}
                 onPress={() => upgrade(slot)}
                 disabled={maxed || !canAfford}
-              />
+              >
+                <Text style={styles.upgradeLabel}>{maxed ? "MAX" : "UPGRADE"}</Text>
+              </Pressable>
             </View>
-          </Parchment>
-        );
-      })}
-    </ScrollView>
+          );
+        })}
+      </ScrollView>
+      <BottomNav />
+      <View style={{ height: insets.bottom, backgroundColor: theme.parchmentDark }} />
+    </ParchmentBg>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    padding: 16,
-    backgroundColor: theme.parchment,
-    paddingBottom: 40,
-  },
-  coinRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
-    justifyContent: "center",
-  },
-  coin: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: theme.ink,
-  },
+  root: { flex: 1 },
+  scroll: { padding: 12, gap: 8, paddingBottom: 24 },
+  h1: { fontSize: 18, fontWeight: "900", color: theme.ink, letterSpacing: 1, marginBottom: 4 },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 10,
-  },
-  slotIcon: {
-    fontSize: 28,
-    width: 36,
-    textAlign: "center",
+    backgroundColor: "#f6e8be",
+    borderWidth: 2,
+    borderColor: theme.woodDark,
+    borderRadius: 8,
+    padding: 8,
   },
   slotLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
     color: theme.inkLight,
     letterSpacing: 0.8,
   },
-  slotName: {
-    fontSize: 15,
-    fontWeight: "800",
+  itemName: {
+    fontSize: 14,
+    fontWeight: "900",
     textShadowColor: "rgba(0,0,0,0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
   upgradeHint: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.inkLight,
     fontWeight: "700",
     marginTop: 2,
+  },
+  upgradeBtn: {
+    backgroundColor: theme.banner,
+    borderWidth: 2,
+    borderColor: theme.bannerDark,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  upgradeBtnDisabled: { opacity: 0.4 },
+  upgradeLabel: {
+    color: "#fff8d8",
+    fontWeight: "900",
+    fontSize: 11,
+    letterSpacing: 0.8,
   },
 });

@@ -1,5 +1,17 @@
 import { equipBonus, makeEquipment, NAME_PARTS_A, NAME_PARTS_B, NAME_SUFFIX_NUMS, GUILDS, PET_LIBRARY } from "./data";
-import type { AvatarStyle, BattleEvent, BattleResult, Equipment, EquipSlot, Player, Stats, Tier } from "./types";
+import type { AvatarStyle, BattleEvent, BattleResult, CharClass, Equipment, EquipSlot, Player, Stats, Tier } from "./types";
+
+const CHAR_CLASSES: CharClass[] = ["knight", "ninja", "mage", "archer", "vampire"];
+
+export function classLabel(c?: CharClass | string | null): string {
+  if (!c) return "Adventurer";
+  return c.charAt(0).toUpperCase() + c.slice(1);
+}
+
+export function powerOf(p: Player): number {
+  const s = totalStats(p);
+  return Math.round(s.str * 2 + s.agl * 1.2 + s.spd * 1.0 + s.hp * 0.3);
+}
 
 export const SLOTS: EquipSlot[] = ["weapon", "helmet", "chest", "gloves", "boots", "accessory"];
 
@@ -103,6 +115,7 @@ export function generateOpponent(seed: string, playerLevel: number): Player {
     losses,
     avatarSeed: seed,
     avatarStyle: STYLES[Math.floor(r() * STYLES.length)],
+    charClass: CHAR_CLASSES[Math.floor(r() * CHAR_CLASSES.length)],
     equipment,
     pet,
     guild,
@@ -253,4 +266,9 @@ export function tierUpgradeCost(currentTier: Tier): { gold: number; crystals: nu
     gold: 100 * Math.pow(3, t),
     crystals: t === 0 ? 0 : t,
   };
+}
+
+function _ignored(p: Player): number {
+  const s = totalStats(p);
+  return Math.round(s.hp / 4 + s.str * 3 + s.agl * 2 + s.spd * 2);
 }

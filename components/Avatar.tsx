@@ -10,15 +10,17 @@ type Props = {
   size?: number;
   containerStyle?: ViewStyle;
   framed?: boolean;
+  fullBody?: boolean;
 };
 
-export function avatarUrl(seed: string, style: AvatarStyle = "lorelei", size = 256) {
+export function avatarUrl(seed: string, style: AvatarStyle = "lorelei", size = 256, fullBody = false) {
   const safeSeed = encodeURIComponent(seed || "hero");
-  return `https://api.dicebear.com/9.x/${style}/png?seed=${safeSeed}&size=${size}&backgroundType=solid&backgroundColor=f4e7c5,ecdcb1,e9d4a3`;
+  const styleToUse = fullBody ? "adventurer" : style;
+  return `https://api.dicebear.com/9.x/${styleToUse}/png?seed=${safeSeed}&size=${size}&backgroundType=solid&backgroundColor=f4e7c5,ecdcb1,e9d4a3`;
 }
 
-export function Avatar({ seed, style = "lorelei", size = 64, containerStyle, framed = true }: Props) {
-  const url = avatarUrl(seed, style, size * 2);
+export function Avatar({ seed, style = "lorelei", size = 64, containerStyle, framed = true, fullBody = false }: Props) {
+  const url = avatarUrl(seed, style, size * 2, fullBody);
   const inner = (
     <Image
       source={url}

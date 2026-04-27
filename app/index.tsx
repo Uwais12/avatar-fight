@@ -1,288 +1,287 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, useWindowDimensions, Pressable, TextInput, Alert } from "react-native";
+import * as ScreenOrientation from "expo-screen-orientation";
+import { Redirect } from "expo-router";
 
 import { useGame } from "../lib/store";
-import { theme } from "../lib/theme";
-import { Avatar } from "../components/Avatar";
-import { PetSprite } from "../components/PetSprite";
-import { StatRow } from "../components/StatRow";
-import { WoodButton } from "../components/WoodButton";
-import { Parchment } from "../components/Parchment";
-import { simulateBattle, totalStats } from "../lib/game";
-import type { Player } from "../lib/types";
+import { ParchmentBg } from "../components/ParchmentBg";
+import { TopResourceBar } from "../components/TopResourceBar";
+import { BottomNav } from "../components/BottomNav";
+import { CharacterShowcase } from "../components/CharacterShowcase";
+import { StatBadge, PowerBox } from "../components/StatBadge";
+import { EquipmentSlot } from "../components/EquipmentSlot";
+import { totalStats, powerOf, classLabel, xpForLevel, SLOTS } from "../lib/game";
+import type { EquipSlot } from "../lib/types";
+import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 
 export default function Home() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
   const player = useGame((s) => s.player);
   const opponents = useGame((s) => s.opponents);
-  const selectedId = useGame((s) => s.selectedOpponentId);
-  const refreshOpponents = useGame((s) => s.refreshOpponents);
-  const selectOpponent = useGame((s) => s.selectOpponent);
-  const setLastBattle = useGame((s) => s.setLastBattle);
-  const updatePlayer = useGame((s) => s.updatePlayer);
+  const ensure = useGame((s) => s.ensureOpponents);
+  const setName = useGame((s) => s.setName);
+  const reset = useGame((s) => s.reset);
+  const [editing, setEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState(player.name);
 
-  const selected = useMemo(
-    () => opponents.find((o) => o.id === selectedId) ?? null,
-    [opponents, selectedId]
-  );
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    if (opponents.length === 0) ensure();
+  }, []);
 
-  const handleFight = () => {
-    if (!selected) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    const result = simulateBattle(player, selected);
-    setLastBattle({
-      winner: result.winner,
-      events: result.events,
-      opponentName: selected.name,
-      opponentLevel: selected.level,
-    });
-    router.push("/battle");
-  };
+  if (!player.onboarded) {
+    return <Redirect href="/welcome" />;
+  }
 
-  const handleFightAll = () => {
-    if (opponents.length === 0) return;
-    let p = player;
-    let wins = 0;
-    let losses = 0;
-    for (const opp of opponents) {
-      const r = simulateBattle(p, opp);
-      if (r.winner === "p1") {
-        wins++;
-        const xpGain = 20 + opp.level * 8;
-        const goldGain = 50 + opp.level * 12;
-        let xp = p.xp + xpGain;
-        let level = p.level;
-        // simple inline level-up
-        const xpFor = (l: number) => Math.round(50 * Math.pow(l, 1.6));
-        while (xp >= xpFor(level)) {
-          xp -= xpFor(level);
-          level++;
-        }
-        p = { ...p, xp, level, gold: p.gold + goldGain, wins: p.wins + 1, crystals: p.crystals + (Math.random() < 0.25 ? 1 : 0) };
-      } else {
-        losses++;
-        const goldLoss = Math.min(p.gold, 10 + p.level * 2);
-        p = { ...p, gold: p.gold - goldLoss, losses: p.losses + 1 };
-      }
-    }
-    updatePlayer(() => p);
-    refreshOpponents();
-    Alert.alert("Sweep complete", `Won ${wins} • Lost ${losses}`);
-  };
+  const stats = totalStats(player);
+  const power = powerOf(player);
+  const xpNeeded = xpForLevel(player.level);
+  const xpPct = Math.min(1, player.xp / xpNeeded);
+  const winRate = player.wins + player.losses > 0
+    ? Math.round((player.wins / (player.wins + player.losses)) * 100) : 0;
 
-  const handleConquer = () => {
-    if (!selected) return;
-    const goldStolen = Math.floor(player.level * 25 + Math.random() * 50);
-    updatePlayer((p) => ({ ...p, gold: p.gold + goldStolen, crystals: p.crystals + 2 }));
-    Alert.alert("Conquered!", `Claimed ${goldStolen} gold and 2 crystals from ${selected.name}`);
+  const headerH = 38;
+  const navH = 38;
+  const bodyH = height - headerH - navH;
+  const leftW = Math.min(170, width * 0.20);
+  const rightW = Math.min(160, width * 0.20);
+  const centerW = width - leftW - rightW - 24;
+
+  const saveName = () => {
+    setName(nameDraft.trim() || "Hero");
+    setEditing(false);
+    Haptics.selectionAsync().catch(() => {});
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.headerRow}>
-        <WoodButton small label="MENU" onPress={() => router.push("/me")} style={{ flexShrink: 0 }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.opponentScroll}>
-          {opponents.map((o) => (
-            <OpponentTile
-              key={o.id}
-              opponent={o}
-              selected={o.id === selectedId}
-              onPress={() => {
-                selectOpponent(o.id);
-                Haptics.selectionAsync().catch(() => {});
-              }}
-            />
-          ))}
-        </ScrollView>
-        <View style={{ gap: 4 }}>
-          <WoodButton small label="↻" onPress={() => { refreshOpponents(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); }} style={{ minWidth: 40 }} />
-          <WoodButton small label="⚙" onPress={() => router.push("/me")} style={{ minWidth: 40 }} />
+    <ParchmentBg style={styles.root}>
+      <TopResourceBar player={player} />
+
+      <View style={[styles.body, { height: bodyH }]}>
+        {/* LEFT: stats + record + edit */}
+        <View style={[styles.leftCol, { width: leftW }]}>
+          <PowerBox value={power} />
+          <StatBadge label="STR" value={stats.str} />
+          <StatBadge label="AGL" value={stats.agl} />
+          <StatBadge label="SPD" value={stats.spd} />
+          <StatBadge label="HP" value={stats.hp} />
+          <View style={styles.xpWrap}>
+            <Text style={styles.xpLabel}>Lv {player.level}</Text>
+            <View style={styles.xpBar}>
+              <View style={[styles.xpFill, { width: `${xpPct * 100}%` }]} />
+            </View>
+            <Text style={styles.xpText}>{player.xp} / {xpNeeded}</Text>
+          </View>
+          <View style={styles.recordRow}>
+            <Text style={styles.recordCell}>W {player.wins}</Text>
+            <Text style={styles.recordCell}>L {player.losses}</Text>
+            <Text style={styles.recordCell}>{winRate}%</Text>
+          </View>
+        </View>
+
+        {/* CENTER: character showcase + name */}
+        <View style={[styles.center, { width: centerW }]}>
+          {editing ? (
+            <View style={styles.editNameRow}>
+              <TextInput
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                style={styles.nameInput}
+                autoFocus
+                maxLength={16}
+                onSubmitEditing={saveName}
+              />
+              <Pressable style={styles.smallBtn} onPress={saveName}>
+                <Text style={styles.smallBtnLabel}>SAVE</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => setEditing(true)} style={styles.nameRow}>
+              <Text style={styles.nameText}>✏️ {player.name}</Text>
+            </Pressable>
+          )}
+          <CharacterShowcase
+            charClass={player.charClass}
+            petKind={player.pet?.kind ?? player.pet?.id}
+            name={player.name}
+            level={player.level}
+            classLabel={classLabel(player.charClass)}
+            power={power}
+            width={centerW - 4}
+            height={bodyH - 56}
+            background="parchment"
+            showLabel={false}
+          />
+        </View>
+
+        {/* RIGHT: equipment grid 2x3 */}
+        <View style={[styles.rightCol, { width: rightW }]}>
+          <Text style={styles.sectionTitle}>EQUIPMENT</Text>
+          <View style={styles.equipGrid}>
+            {SLOTS.map((slot) => (
+              <View key={slot} style={styles.equipCell}>
+                <EquipmentSlot
+                  slot={slot}
+                  equipment={player.equipment[slot]}
+                  size={(rightW - 18) / 2}
+                  onPress={() => router.push("/shop")}
+                />
+                <Text style={styles.equipLabel}>{slot.toUpperCase()}</Text>
+              </View>
+            ))}
+          </View>
+          <Pressable
+            style={styles.resetBtn}
+            onPress={() => Alert.alert("Reset progress?", "All stats and gear will be wiped.", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Reset", style: "destructive", onPress: () => { reset(); } },
+            ])}
+          >
+            <Text style={styles.resetText}>RESET</Text>
+          </Pressable>
         </View>
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.leftCol}>
-          <WoodButton label="FIGHT" variant="primary" onPress={handleFight} />
-          <WoodButton label="CONQUER" variant="primary" onPress={handleConquer} />
-          <WoodButton label="FIGHT ALL" variant="primary" onPress={handleFightAll} />
-        </View>
-
-        <View style={styles.centerCol}>
-          {selected ? <OpponentDetail opponent={selected} /> : <Text style={styles.placeholder}>Pick an opponent</Text>}
-        </View>
-      </View>
-
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomGroup}>
-          <Text style={styles.coin}>💰 {player.gold}</Text>
-          <Text style={styles.coin}>💎 {player.crystals}</Text>
-        </View>
-        <View style={styles.bottomGroup}>
-          <WoodButton small label="EQUIP" onPress={() => router.push("/equipment")} />
-          <WoodButton small label="FORGE" onPress={() => router.push("/shop")} />
-          <WoodButton small label="PETS" onPress={() => router.push("/pets")} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function OpponentTile({ opponent, selected, onPress }: { opponent: Player; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.tile, selected && styles.tileSelected]}>
-      <View style={styles.tileLevel}>
-        <Text style={styles.tileLevelText}>Lv{opponent.level}</Text>
-      </View>
-      <Avatar seed={opponent.avatarSeed} style={opponent.avatarStyle} size={50} framed={false} />
-    </Pressable>
-  );
-}
-
-function OpponentDetail({ opponent }: { opponent: Player }) {
-  const stats = totalStats(opponent);
-  const winRate = opponent.wins + opponent.losses > 0
-    ? Math.round((opponent.wins / (opponent.wins + opponent.losses)) * 100)
-    : 0;
-  return (
-    <Parchment style={{ flex: 1 }}>
-      <View style={styles.detailInner}>
-        <View style={styles.detailHeader}>
-          <Text style={styles.detailName}>👤 {opponent.name}</Text>
-          {opponent.guild && <Text style={styles.detailGuild}>🏰 {opponent.guild}</Text>}
-        </View>
-        <View style={styles.detailStats}>
-          <StatRow icon="⚔️" label="STR" value={stats.str} />
-          <StatRow icon="🛡️" label="AGL" value={stats.agl} />
-          <StatRow icon="👟" label="SPD" value={stats.spd} />
-          <StatRow icon="❤️" label="HP" value={stats.hp} />
-          <StatRow icon="🏆" label="WIN" value={`${winRate}%`} />
-        </View>
-        <View style={styles.detailFighters}>
-          {opponent.pet && <PetSprite spriteKey={opponent.pet.spriteKey} size={88} />}
-          <Avatar seed={opponent.avatarSeed} style={opponent.avatarStyle} size={96} />
-        </View>
-      </View>
-    </Parchment>
+      <BottomNav />
+    </ParchmentBg>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.parchment,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 6,
-    backgroundColor: theme.parchmentDark,
-    borderBottomWidth: 2,
-    borderBottomColor: theme.woodDark,
-  },
-  opponentScroll: {
-    gap: 6,
-    paddingHorizontal: 4,
-    alignItems: "center",
-  },
-  tile: {
-    width: 58,
-    height: 70,
-    borderRadius: 6,
-    backgroundColor: theme.parchmentLight,
-    borderWidth: 2,
-    borderColor: theme.woodDark,
-    overflow: "hidden",
-    alignItems: "center",
-  },
-  tileSelected: {
-    borderColor: theme.banner,
-    borderWidth: 3,
-  },
-  tileLevel: {
-    backgroundColor: theme.bannerDark,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    width: "100%",
-    alignItems: "center",
-  },
-  tileLevelText: {
-    color: "#fff8d8",
-    fontWeight: "900",
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
+  root: { flex: 1 },
   body: {
-    flex: 1,
     flexDirection: "row",
-    padding: 10,
-    gap: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    gap: 6,
   },
   leftCol: {
-    width: 110,
-    gap: 10,
-    paddingTop: 8,
-  },
-  centerCol: {
-    flex: 1,
-  },
-  detailInner: {
-    flex: 1,
-    padding: 10,
-  },
-  detailHeader: {
-    marginBottom: 8,
-  },
-  detailName: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: theme.ink,
-  },
-  detailGuild: {
-    fontSize: 12,
-    color: theme.inkLight,
-    marginTop: 2,
-  },
-  detailStats: {
-    marginTop: 4,
-  },
-  detailFighters: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    marginTop: 8,
+    paddingVertical: 2,
     gap: 4,
   },
-  placeholder: {
-    color: theme.inkLight,
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 4,
+  },
+  rightCol: {
+    paddingVertical: 2,
+    gap: 4,
+  },
+  sectionTitle: {
+    color: "#7a1f1f",
+    fontWeight: "900",
+    fontSize: 11,
+    letterSpacing: 1.2,
     textAlign: "center",
-    marginTop: 40,
   },
-  bottomBar: {
+  xpWrap: {
+    backgroundColor: "#f6e8be",
+    borderWidth: 1.5,
+    borderColor: "#7a4a25",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  xpLabel: { color: "#3a2812", fontWeight: "900", fontSize: 11 },
+  xpBar: {
+    height: 8,
+    backgroundColor: "#7a4a25",
+    borderRadius: 2,
+    marginTop: 2,
+    overflow: "hidden",
+  },
+  xpFill: { height: "100%", backgroundColor: "#3a8c3a" },
+  xpText: { color: "#3a2812", fontWeight: "700", fontSize: 9, marginTop: 2, textAlign: "right" },
+  recordRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    paddingBottom: 18,
-    backgroundColor: theme.parchmentDark,
-    borderTopWidth: 2,
-    borderTopColor: theme.woodDark,
+    justifyContent: "space-around",
+    backgroundColor: "#f6e8be",
+    borderWidth: 1.5,
+    borderColor: "#7a4a25",
+    borderRadius: 4,
+    paddingVertical: 4,
   },
-  bottomGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  recordCell: {
+    color: "#3a2812",
+    fontWeight: "900",
+    fontSize: 11,
   },
-  coin: {
+  nameRow: {
+    backgroundColor: "rgba(246, 232, 190, 0.85)",
+    borderWidth: 1.5,
+    borderColor: "#7a4a25",
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  nameText: {
+    color: "#3a2812",
+    fontWeight: "900",
     fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  editNameRow: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  nameInput: {
+    backgroundColor: "#fff8d8",
+    borderWidth: 2,
+    borderColor: "#7a4a25",
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#3a2812",
+    minWidth: 140,
+  },
+  smallBtn: {
+    backgroundColor: "#c44030",
+    borderWidth: 2,
+    borderColor: "#5a0e08",
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  smallBtnLabel: {
+    color: "#fff8d8",
+    fontWeight: "900",
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  equipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    justifyContent: "center",
+  },
+  equipCell: {
+    alignItems: "center",
+    gap: 1,
+  },
+  equipLabel: {
+    color: "#7a4a25",
     fontWeight: "800",
-    color: theme.ink,
+    fontSize: 8,
+    letterSpacing: 0.3,
+  },
+  resetBtn: {
+    backgroundColor: "rgba(122, 30, 30, 0.65)",
+    borderRadius: 4,
+    paddingVertical: 4,
+    alignItems: "center",
+    marginTop: 2,
+  },
+  resetText: {
+    color: "#fff8d8",
+    fontWeight: "900",
+    fontSize: 9,
+    letterSpacing: 1,
   },
 });

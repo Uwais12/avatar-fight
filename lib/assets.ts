@@ -17,14 +17,22 @@ export const PET_ASSETS: Record<string, ImageSourcePropType> = {
 };
 
 export const WEAPON_ASSETS: Record<string, ImageSourcePropType> = {
-  sword: require("../assets/generated/weapons/sword.png"),
-  bow: require("../assets/generated/weapons/bow.png"),
-  staff: require("../assets/generated/weapons/staff.png"),
+  sword: require("../assets/generated/weapon-sword.png"),
+  bow: require("../assets/generated/weapon-bow.png"),
+  staff: require("../assets/generated/weapon-staff.png"),
+  axe: require("../assets/generated/weapon-axe.png"),
+  mace: require("../assets/generated/weapon-mace.png"),
+  dagger: require("../assets/generated/weapon-dagger.png"),
 };
 
 export const ARMOR_ASSETS: Record<string, ImageSourcePropType> = {
+  leather: require("../assets/generated/armor-leather.png"),
+  chain: require("../assets/generated/armor-chain.png"),
+  plate: require("../assets/generated/armor-plate.png"),
+  robe: require("../assets/generated/armor-robe.png"),
+  // legacy slot-named fallbacks
   helm: require("../assets/generated/armor/helm.png"),
-  chest: require("../assets/generated/armor/chest.png"),
+  chest: require("../assets/generated/armor-leather.png"),
   boots: require("../assets/generated/armor/boots.png"),
 };
 

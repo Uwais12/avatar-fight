@@ -22,21 +22,15 @@ const SLOT_FALLBACK_ICON: Record<string, string> = {
   accessory: "💍",
 };
 
-const SLOT_TO_ASSET_KEY: Record<string, string> = {
-  weapon: "sword",
-  helmet: "helm",
-  chest: "chest",
-  boots: "boots",
-};
-
 export function EquipmentSlot({ slot, equipment, size = 56, onPress }: Props) {
   const tier = equipment?.tier ?? 0;
   const borderColor = equipment ? TIER_COLORS[tier] : theme.woodDark;
 
-  const assetKey = SLOT_TO_ASSET_KEY[slot];
   const isWeapon = slot === "weapon";
-  const isArmorish = ["helmet", "chest", "boots"].includes(slot);
-  const asset = equipment && isWeapon ? WEAPON_ASSETS[assetKey] : equipment && isArmorish ? ARMOR_ASSETS[assetKey] : null;
+  const key = equipment?.iconKey ?? "";
+  const asset = equipment
+    ? (isWeapon ? WEAPON_ASSETS[key] : ARMOR_ASSETS[key]) ?? null
+    : null;
 
   return (
     <Pressable onPress={onPress} style={[styles.slot, { width: size, height: size, borderColor }]}>

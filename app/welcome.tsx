@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ParchmentBg } from "../components/ParchmentBg";
 import { useGame } from "../lib/store";
@@ -19,7 +20,10 @@ const CLASSES: { id: CharClass; label: string; bonus: string }[] = [
 ];
 
 export default function Welcome() {
-  const { width, height } = useWindowDimensions();
+  const { width: rawW, height: rawH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const width = rawW - insets.left - insets.right;
+  const height = rawH - insets.top - insets.bottom;
   const router = useRouter();
   const onboard = useGame((s) => s.onboard);
   const [name, setName] = useState("");

@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Redirect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useGame } from "../lib/store";
 import { ParchmentBg } from "../components/ParchmentBg";
@@ -17,7 +18,10 @@ import { petAssetFor } from "../lib/assets";
 
 export default function Home() {
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width: rawW, height: rawH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const width = rawW - insets.left - insets.right;
+  const height = rawH - insets.top - insets.bottom;
   const player = useGame((s) => s.player);
   const opponents = useGame((s) => s.opponents);
   const ensure = useGame((s) => s.ensureOpponents);
@@ -47,11 +51,12 @@ export default function Home() {
   const bodyH = height - headerH - navH;
 
   const leftW = Math.round(width * 0.26);
-  const rightW = Math.round(width * 0.30);
+  const rightW = Math.round(width * 0.28);
   const gap = 6;
   const centerW = width - leftW - rightW - gap * 2 - 12; // 12 = horizontal padding
 
-  const slotSize = Math.min(54, Math.floor((rightW - 24) / 3) - 6);
+  // 3-col grid: rightW - panel padding(12) - 2 gaps(8) = available for cells, /3 = cell width
+  const slotSize = Math.max(38, Math.min(56, Math.floor((rightW - 28) / 3) - 4));
 
   const saveName = () => {
     setName(nameDraft.trim() || "Hero");

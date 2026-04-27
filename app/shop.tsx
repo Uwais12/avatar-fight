@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert, useWindowDimensio
 import { Image } from "expo-image";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ParchmentBg } from "../components/ParchmentBg";
 import { TopResourceBar } from "../components/TopResourceBar";
@@ -15,7 +16,10 @@ import type { ShopArmor, ShopWeapon, ShopPet } from "../lib/shop";
 type Tab = "weapons" | "armor" | "pets";
 
 export default function Shop() {
-  const { width, height } = useWindowDimensions();
+  const { width: rawW, height: rawH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const width = rawW - insets.left - insets.right;
+  const height = rawH - insets.top - insets.bottom;
   const player = useGame((s) => s.player);
   const buyEquipment = useGame((s) => s.buyEquipment);
   const buyPet = useGame((s) => s.buyPet);

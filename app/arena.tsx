@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useGame } from "../lib/store";
 import { ParchmentBg } from "../components/ParchmentBg";
@@ -17,7 +18,10 @@ import type { Player } from "../lib/types";
 
 export default function Arena() {
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width: rawW, height: rawH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const width = rawW - insets.left - insets.right;
+  const height = rawH - insets.top - insets.bottom;
   const player = useGame((s) => s.player);
   const opponents = useGame((s) => s.opponents);
   const selectedId = useGame((s) => s.selectedOpponentId);
@@ -69,9 +73,9 @@ export default function Arena() {
   const headerH = 38;
   const navH = 38;
   const bodyH = height - headerH - navH;
-  const leftW = Math.min(190, width * 0.26);
-  const rightW = Math.min(160, width * 0.22);
-  const centerW = width - leftW - rightW - 16;
+  const leftW = Math.min(180, Math.max(140, width * 0.24));
+  const rightW = Math.min(170, Math.max(140, width * 0.22));
+  const centerW = width - leftW - rightW - 22;
 
   return (
     <ParchmentBg style={styles.root}>

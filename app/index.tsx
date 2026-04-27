@@ -103,6 +103,7 @@ export default function Home() {
             </Pressable>
           )}
           <CharacterShowcase
+            player={player}
             charClass={player.charClass}
             petKind={player.pet?.kind ?? player.pet?.id}
             name={player.name}

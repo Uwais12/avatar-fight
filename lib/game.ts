@@ -27,10 +27,17 @@ export function baseStats(level: number): Stats {
 export function totalStats(p: Player): Stats {
   const base = baseStats(p.level);
   let { hp, str, agl, spd } = base;
+  // try shop catalog bonuses first; fall back to tier-based equipBonus
+  // (lazy import to avoid circular deps)
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { bonusFor } = require("./shop") as typeof import("./shop");
   for (const slot of SLOTS) {
     const eq = p.equipment[slot];
     if (eq) {
-      const b = equipBonus(slot, eq.tier);
+      const shopBonus = bonusFor(eq);
+      const b = (shopBonus.hp || shopBonus.str || shopBonus.agl || shopBonus.spd)
+        ? shopBonus
+        : equipBonus(slot, eq.tier);
       hp += b.hp; str += b.str; agl += b.agl; spd += b.spd;
     }
   }

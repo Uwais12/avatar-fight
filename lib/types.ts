@@ -47,6 +47,8 @@ export type Player = {
   avatarStyle: AvatarStyle;
   charClass?: CharClass;
   onboarded?: boolean;
+  inventory?: Equipment[];
+  ownedPetIds?: string[];
   equipment: Record<EquipSlot, Equipment | null>;
   pet: Pet | null;
   guild?: string;

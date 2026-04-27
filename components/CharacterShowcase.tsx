@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, ImageSourcePropType } from "react-native";
 import { Image } from "expo-image";
 import Svg, { Defs, LinearGradient, Stop, Rect, Ellipse, Pattern } from "react-native-svg";
-import { characterAssets, petAssets, type CharClass, type PetKind } from "../lib/assets";
+import { characterAssets, petAssets, type CharClass, type PetKind, weaponAssets } from "../lib/assets";
 
 type Props = {
   charClass?: CharClass | string | null;
@@ -83,6 +83,21 @@ export function CharacterShowcase({
           contentFit="contain"
           cachePolicy="memory-disk"
         />
+        {player?.equipment?.weapon && weaponAssets[player.equipment.weapon.iconKey] && (
+          <Image
+            source={weaponAssets[player.equipment.weapon.iconKey]}
+            style={{
+              width: charSize * 0.42,
+              height: charSize * 0.42,
+              position: "absolute",
+              right: w * 0.16 - charSize * 0.05,
+              bottom: h * 0.32,
+              transform: [{ rotate: "-10deg" }],
+            }}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+          />
+        )}
       </View>
 
       {showLabel && (name || level !== undefined || power !== undefined) && (

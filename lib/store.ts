@@ -18,6 +18,8 @@ const NEW_PLAYER: Player = {
   avatarStyle: "lorelei",
   charClass: "knight",
   onboarded: false,
+  inventory: [],
+  ownedPetIds: [],
   equipment: {
     weapon: null,
     helmet: null,
@@ -56,6 +58,10 @@ type State = {
   reset: () => void;
   setClass: (charClass: import("./types").CharClass) => void;
   onboard: (name: string, charClass: import("./types").CharClass) => void;
+  buyEquipment: (eq: Equipment, price: number) => boolean;
+  buyPet: (petId: string, price: number) => boolean;
+  equipFromInventory: (index: number) => void;
+  unequip: (slot: import("./types").EquipSlot) => void;
 };
 
 export const useGame = create<State>()(
@@ -114,6 +120,61 @@ export const useGame = create<State>()(
             avatarSeed: `${charClass}-${Math.random().toString(36).slice(2, 8)}`,
           },
         }),
+      buyEquipment: (eq: Equipment, price: number) => {
+        const cur = get().player;
+        if (cur.gold < price) return false;
+        set({
+          player: {
+            ...cur,
+            gold: cur.gold - price,
+            inventory: [...(cur.inventory ?? []), eq],
+          },
+        });
+        return true;
+      },
+      buyPet: (petId: string, price: number) => {
+        const cur = get().player;
+        if (cur.gold < price) return false;
+        if ((cur.ownedPetIds ?? []).includes(petId)) return false;
+        set({
+          player: {
+            ...cur,
+            gold: cur.gold - price,
+            ownedPetIds: [...(cur.ownedPetIds ?? []), petId],
+          },
+        });
+        return true;
+      },
+      equipFromInventory: (index: number) => {
+        const cur = get().player;
+        const inv = cur.inventory ?? [];
+        const item = inv[index];
+        if (!item) return;
+        const slot = item.slot;
+        const currentlyEquipped = cur.equipment[slot];
+        const newInventory = [...inv];
+        newInventory.splice(index, 1);
+        if (currentlyEquipped) newInventory.push(currentlyEquipped);
+        set({
+          player: {
+            ...cur,
+            inventory: newInventory,
+            equipment: { ...cur.equipment, [slot]: item },
+          },
+        });
+      },
+      unequip: (slot: import("./types").EquipSlot) => {
+        const cur = get().player;
+        const item = cur.equipment[slot];
+        if (!item) return;
+        set({
+          player: {
+            ...cur,
+            inventory: [...(cur.inventory ?? []), item],
+            equipment: { ...cur.equipment, [slot]: null },
+          },
+        });
+      },
     }),
     {
       name: "afo-clone-v1",

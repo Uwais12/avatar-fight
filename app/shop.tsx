@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Haptics from "expo-haptics";
@@ -94,14 +94,19 @@ export default function Shop() {
           ))}
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {items.map((item: any) => {
+        <FlatList
+          style={{ flex: 1 }}
+          data={items}
+          keyExtractor={(item: any) => item.id}
+          contentContainerStyle={styles.list}
+          ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
+          showsVerticalScrollIndicator={true}
+          renderItem={({ item }: { item: any }) => {
             const owned = isOwned(item);
             const canAfford = player.gold >= item.price;
             const isSelected = selectedId === item.id;
             return (
               <Pressable
-                key={item.id}
                 onPress={() => setSelectedId(item.id)}
                 style={[styles.row, isSelected && styles.rowSelected]}
               >
@@ -123,8 +128,8 @@ export default function Shop() {
                 </View>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }}
+        />
 
         <View style={styles.detail}>
           {selected && (
@@ -209,7 +214,6 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    gap: 4,
   },
   row: {
     flexDirection: "row",

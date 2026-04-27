@@ -10,7 +10,7 @@ import { TopResourceBar } from "../components/TopResourceBar";
 import { BottomNav } from "../components/BottomNav";
 import { useGame } from "../lib/store";
 import { WEAPON_ASSETS, ARMOR_ASSETS, PET_ASSETS } from "../lib/assets";
-import { PET_CATALOG, shopPetToPet, bonusFor } from "../lib/shop";
+import { PET_CATALOG, bonusFor } from "../lib/shop";
 import { TIER_NAMES, TIER_COLORS } from "../lib/types";
 import type { Equipment, EquipSlot } from "../lib/types";
 
@@ -24,7 +24,7 @@ export default function Bag() {
   const player = useGame((s) => s.player);
   const equipFromInventory = useGame((s) => s.equipFromInventory);
   const unequip = useGame((s) => s.unequip);
-  const setPet = useGame((s) => s.setPet);
+  const togglePetActive = useGame((s) => s.togglePetActive);
   const [tab, setTab] = useState<Tab>("gear");
 
   useEffect(() => {
@@ -90,24 +90,28 @@ export default function Bag() {
             ownedPets.length === 0 ? (
               <Text style={styles.empty}>No pets owned. Visit the SHOP.</Text>
             ) : (
-              ownedPets.map((p) => {
-                const isActive = player.pet?.id === p.id;
-                return (
-                  <PetCard
-                    key={p.id}
-                    pet={p}
-                    active={isActive}
-                    onAction={() => {
-                      if (isActive) {
-                        setPet(null);
-                      } else {
-                        setPet(shopPetToPet(p));
-                      }
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                    }}
-                  />
-                );
-              })
+              <>
+                <Text style={styles.petHelper}>
+                  Active pets fight with you (max 3). Tap SUMMON to add, DROP to remove.
+                </Text>
+                {ownedPets.map((p) => {
+                  const activePets = player.pets ?? [];
+                  const isActive = activePets.some((ap) => ap.id === p.id);
+                  const atCap = activePets.length >= 3 && !isActive;
+                  return (
+                    <PetCard
+                      key={p.id}
+                      pet={p}
+                      active={isActive}
+                      disabled={atCap}
+                      onAction={() => {
+                        const ok = togglePetActive(p.id);
+                        if (ok) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                      }}
+                    />
+                  );
+                })}
+              </>
             )
           )}
 
@@ -168,7 +172,7 @@ function ItemCard({ eq, onAction, actionLabel, actionVariant, slotLabel }: { eq:
   );
 }
 
-function PetCard({ pet, active, onAction }: { pet: typeof PET_CATALOG[number]; active: boolean; onAction: () => void }) {
+function PetCard({ pet, active, disabled, onAction }: { pet: typeof PET_CATALOG[number]; active: boolean; disabled?: boolean; onAction: () => void }) {
   const src = PET_ASSETS[pet.spriteKey];
   return (
     <View style={[styles.card, { borderColor: active ? "#3a8c3a" : "#7a4a25" }]}>
@@ -177,7 +181,7 @@ function PetCard({ pet, active, onAction }: { pet: typeof PET_CATALOG[number]; a
       </View>
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={styles.cardName} numberOfLines={1}>{pet.name}</Text>
-        <Text style={styles.cardSlot}>PET</Text>
+        <Text style={styles.cardSlot}>PET{active ? " · ACTIVE" : ""}</Text>
         <Text style={styles.cardBonus} numberOfLines={1}>
           {[
             pet.bonus.hp ? `+${pet.bonus.hp} HP` : null,
@@ -189,9 +193,16 @@ function PetCard({ pet, active, onAction }: { pet: typeof PET_CATALOG[number]; a
       </View>
       <Pressable
         onPress={onAction}
-        style={[styles.actionBtn, active && styles.actionBtnSecondary]}
+        disabled={disabled}
+        style={[
+          styles.actionBtn,
+          active && styles.actionBtnSecondary,
+          disabled && { opacity: 0.4 },
+        ]}
       >
-        <Text style={[styles.actionLabel, active && styles.actionLabelSecondary]}>{active ? "DROP" : "SUMMON"}</Text>
+        <Text style={[styles.actionLabel, active && styles.actionLabelSecondary]}>
+          {active ? "DROP" : disabled ? "FULL" : "SUMMON"}
+        </Text>
       </Pressable>
     </View>
   );
@@ -262,5 +273,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontStyle: "italic",
     paddingVertical: 40,
+  },
+  petHelper: {
+    color: "#7a4a25",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingVertical: 4,
+    fontStyle: "italic",
   },
 });

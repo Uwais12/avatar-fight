@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { makeEquipment } from "./data";
 import { generateOpponentList } from "./game";
 import type { AvatarStyle, BattleEvent, Equipment, EquipSlot, Pet, Player, Tier } from "./types";
+import { MAX_ACTIVE_PETS } from "./types";
 
 const NEW_PLAYER: Player = {
   id: "me",
@@ -28,6 +29,7 @@ const NEW_PLAYER: Player = {
     boots: null,
     accessory: null,
   },
+  pets: [],
   pet: null,
 };
 
@@ -53,7 +55,10 @@ type State = {
   ensureOpponents: () => void;
   selectOpponent: (id: string | null) => void;
   setEquipment: (slot: EquipSlot, eq: Equipment | null) => void;
-  setPet: (pet: Pet | null) => void;
+  /** Toggle a pet by id between active (in `pets`) and inactive. Returns true on success. */
+  togglePetActive: (petId: string) => boolean;
+  /** Clear all active pets. */
+  clearActivePets: () => void;
   setLastBattle: (r: LastBattle) => void;
   reset: () => void;
   setClass: (charClass: import("./types").CharClass) => void;
@@ -96,7 +101,27 @@ export const useGame = create<State>()(
             equipment: { ...get().player.equipment, [slot]: eq },
           },
         }),
-      setPet: (pet) => set({ player: { ...get().player, pet } }),
+      togglePetActive: (petId) => {
+        // Need pet template (with bonus stats etc) — look it up from shop catalog.
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { PET_CATALOG, shopPetToPet } = require("./shop") as typeof import("./shop");
+        const cur = get().player;
+        const active = cur.pets ?? [];
+        const idx = active.findIndex((p) => p.id === petId);
+        if (idx >= 0) {
+          // already active → remove
+          const next = active.filter((_, i) => i !== idx);
+          set({ player: { ...cur, pets: next, pet: next[0] ?? null } });
+          return true;
+        }
+        if (active.length >= MAX_ACTIVE_PETS) return false;
+        const tpl = PET_CATALOG.find((p) => p.id === petId);
+        if (!tpl) return false;
+        const next = [...active, shopPetToPet(tpl)];
+        set({ player: { ...cur, pets: next, pet: next[0] } });
+        return true;
+      },
+      clearActivePets: () => set({ player: { ...get().player, pets: [], pet: null } }),
       setLastBattle: (r) => set({ lastBattle: r }),
       reset: () =>
         set({
@@ -186,7 +211,14 @@ export const useGame = create<State>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({ player: s.player }) as unknown as State,
       onRehydrateStorage: () => (state) => {
-        state?.setHydrated();
+        if (state) {
+          // Migrate legacy single pet → pets array
+          const p = state.player;
+          if (p && (!p.pets || p.pets.length === 0) && p.pet) {
+            state.player = { ...p, pets: [p.pet] };
+          }
+          state.setHydrated();
+        }
       },
     }
   )

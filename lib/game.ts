@@ -1,5 +1,13 @@
 import { equipBonus, makeEquipment, NAME_PARTS_A, NAME_PARTS_B, NAME_SUFFIX_NUMS, GUILDS, PET_LIBRARY } from "./data";
-import type { AvatarStyle, BattleEvent, BattleResult, CharClass, Equipment, EquipSlot, Player, Stats, Tier } from "./types";
+import type { AvatarStyle, BattleEvent, BattleResult, CharClass, CombatantId, Equipment, EquipSlot, Pet, Player, Stats, Tier } from "./types";
+
+/** Active pets — supports the new array form, falls back to legacy single pet. */
+export function activePetsOf(p: Player | null | undefined): Pet[] {
+  if (!p) return [];
+  if (p.pets && p.pets.length > 0) return p.pets;
+  if (p.pet) return [p.pet];
+  return [];
+}
 
 const CHAR_CLASSES: CharClass[] = ["knight", "ninja", "mage", "archer", "vampire"];
 
@@ -41,18 +49,23 @@ export function totalStats(p: Player): Stats {
       hp += b.hp; str += b.str; agl += b.agl; spd += b.spd;
     }
   }
-  if (p.pet) {
-    hp += p.pet.bonusStats.hp;
-    str += p.pet.bonusStats.str;
-    agl += p.pet.bonusStats.agl;
-    spd += p.pet.bonusStats.spd;
+  for (const pet of activePetsOf(p)) {
+    hp += pet.bonusStats.hp;
+    str += pet.bonusStats.str;
+    agl += pet.bonusStats.agl;
+    spd += pet.bonusStats.spd;
   }
   return { hp, str, agl, spd };
 }
 
 export function petCombatStats(p: Player): Stats | null {
-  if (!p.pet) return null;
-  const s = p.pet.bonusStats;
+  const first = activePetsOf(p)[0];
+  if (!first) return null;
+  return petCombatStatsOf(p, first);
+}
+
+export function petCombatStatsOf(p: Player, pet: Pet): Stats {
+  const s = pet.bonusStats;
   const lvlMult = 1 + p.level * 0.05;
   return {
     hp: Math.round(s.hp * lvlMult * 1.5),
@@ -106,8 +119,12 @@ export function generateOpponent(seed: string, playerLevel: number): Player {
   const wins = Math.floor(r() * level * 5);
   const losses = Math.floor(r() * level * 3);
 
-  const petTpl = PET_LIBRARY[Math.floor(r() * PET_LIBRARY.length)];
-  const pet = r() > 0.15 ? { ...petTpl, level: Math.max(1, level - Math.floor(r() * 5)) } : null;
+  const petCount = level >= 10 ? (r() < 0.4 ? 2 : 1) : (r() > 0.15 ? 1 : 0);
+  const opponentPets = [] as Pet[];
+  for (let i = 0; i < petCount; i++) {
+    const tpl = PET_LIBRARY[Math.floor(r() * PET_LIBRARY.length)];
+    opponentPets.push({ ...tpl, level: Math.max(1, level - Math.floor(r() * 5)) });
+  }
 
   const guild = r() > 0.4 ? GUILDS[Math.floor(r() * GUILDS.length)] : undefined;
 
@@ -124,7 +141,8 @@ export function generateOpponent(seed: string, playerLevel: number): Player {
     avatarStyle: STYLES[Math.floor(r() * STYLES.length)],
     charClass: CHAR_CLASSES[Math.floor(r() * CHAR_CLASSES.length)],
     equipment,
-    pet,
+    pets: opponentPets,
+    pet: opponentPets[0] ?? null,
     guild,
   };
 }
@@ -140,103 +158,129 @@ export function generateOpponentList(playerLevel: number, count = 6, salt = ""):
 
 export function simulateBattle(p1: Player, p2: Player, seed = Math.random() * 1e9): BattleResult {
   const r = rng(seed | 0);
-  const s1 = totalStats(p1);
-  const s2 = totalStats(p2);
-  const pet1 = petCombatStats(p1);
-  const pet2 = petCombatStats(p2);
+  const s1 = totalStatsNoPet(p1);
+  const s2 = totalStatsNoPet(p2);
+  const p1Pets = activePetsOf(p1);
+  const p2Pets = activePetsOf(p2);
+  const p1PetStats = p1Pets.map((pt) => petCombatStatsOf(p1, pt));
+  const p2PetStats = p2Pets.map((pt) => petCombatStatsOf(p2, pt));
 
-  let hp1 = s1.hp;
-  let hp2 = s2.hp;
-  let petHp1 = pet1 ? pet1.hp : 0;
-  let petHp2 = pet2 ? pet2.hp : 0;
+  // Combatant id helpers
+  const P1 = "p1";
+  const P2 = "p2";
+  const p1PetId = (i: number) => `p1_pet_${i}`;
+  const p2PetId = (i: number) => `p2_pet_${i}`;
+
+  // HP map keyed by combatant id
+  const hps: Record<CombatantId, number> = {
+    [P1]: s1.hp,
+    [P2]: s2.hp,
+  };
+  p1PetStats.forEach((st, i) => { hps[p1PetId(i)] = st.hp; });
+  p2PetStats.forEach((st, i) => { hps[p2PetId(i)] = st.hp; });
+
+  const statsOf = (id: CombatantId): Stats => {
+    if (id === P1) return s1;
+    if (id === P2) return s2;
+    if (id.startsWith("p1_pet_")) return p1PetStats[Number(id.slice(7))];
+    return p2PetStats[Number(id.slice(7))];
+  };
+  const sideOf = (id: CombatantId): "p1" | "p2" => id.startsWith("p1") ? "p1" : "p2";
+  const isPet = (id: CombatantId) => id.includes("_pet_");
+  const aliveOnSide = (side: "p1" | "p2"): CombatantId[] => {
+    const main = side === "p1" ? P1 : P2;
+    const pets = side === "p1" ? p1Pets.map((_, i) => p1PetId(i)) : p2Pets.map((_, i) => p2PetId(i));
+    return [main, ...pets].filter((id) => hps[id] > 0);
+  };
+
+  // Strict alternation per the user's spec: p1 → p1.pets... → p2 → p2.pets... → repeat.
+  const order: CombatantId[] = [
+    P1,
+    ...p1Pets.map((_, i) => p1PetId(i)),
+    P2,
+    ...p2Pets.map((_, i) => p2PetId(i)),
+  ];
 
   const events: BattleEvent[] = [];
-  events.push({
-    t: "start",
-    attacker: "p1",
-    target: "p2",
-    hp1After: hp1,
-    hp2After: hp2,
-    msg: "Battle begin",
-  });
-
-  const order: ("p1" | "p2" | "pet1" | "pet2")[] = [];
-  const combatants: { who: "p1" | "p2" | "pet1" | "pet2"; spd: number }[] = [
-    { who: "p1", spd: s1.spd },
-    { who: "p2", spd: s2.spd },
-  ];
-  if (pet1) combatants.push({ who: "pet1", spd: pet1.spd });
-  if (pet2) combatants.push({ who: "pet2", spd: pet2.spd });
-  combatants.sort((a, b) => b.spd - a.spd);
-  for (const c of combatants) order.push(c.who);
+  events.push({ t: "start", attacker: P1, target: P2, hps: { ...hps }, msg: "Battle begin" });
 
   let round = 0;
   const maxRounds = 60;
+  const mainAlive = () => hps[P1] > 0 && hps[P2] > 0;
 
-  while (hp1 > 0 && hp2 > 0 && round < maxRounds) {
+  while (mainAlive() && round < maxRounds) {
     round++;
     for (const who of order) {
-      if (hp1 <= 0 || hp2 <= 0) break;
+      if (!mainAlive()) break;
+      if (hps[who] <= 0) continue;
 
-      let attackerStats: Stats;
-      let defenderStats: Stats;
-      let target: "p1" | "p2";
-      let attackerLabel: typeof who = who;
-
-      if (who === "p1") {
-        if (hp1 <= 0) continue;
-        attackerStats = s1; defenderStats = s2; target = "p2";
-      } else if (who === "p2") {
-        if (hp2 <= 0) continue;
-        attackerStats = s2; defenderStats = s1; target = "p1";
-      } else if (who === "pet1") {
-        if (!pet1 || petHp1 <= 0) continue;
-        attackerStats = pet1; defenderStats = s2; target = "p2";
+      // Pick target: pets prefer enemy pets first, fall back to enemy main.
+      // Mains always target enemy main.
+      const enemySide: "p1" | "p2" = sideOf(who) === "p1" ? "p2" : "p1";
+      let target: CombatantId;
+      if (isPet(who)) {
+        const enemyPetsAlive = aliveOnSide(enemySide).filter(isPet);
+        target = enemyPetsAlive[0] ?? (enemySide === "p1" ? P1 : P2);
       } else {
-        if (!pet2 || petHp2 <= 0) continue;
-        attackerStats = pet2; defenderStats = s1; target = "p1";
+        target = enemySide === "p1" ? P1 : P2;
       }
+
+      const attackerStats = statsOf(who);
+      const defenderStats = statsOf(target);
 
       const dodgeChance = Math.min(0.4, defenderStats.agl / (defenderStats.agl + attackerStats.agl * 1.6 + 50));
       if (r() < dodgeChance) {
-        events.push({
-          t: "dodge",
-          attacker: attackerLabel,
-          target,
-          hp1After: hp1,
-          hp2After: hp2,
-        });
+        events.push({ t: "dodge", attacker: who, target, hps: { ...hps } });
         continue;
       }
 
       const mitigation = defenderStats.agl / (defenderStats.agl + attackerStats.str * 1.2 + 80);
-      // wider variance so weaker players still occasionally upset
-      const variance = 0.70 + r() * 0.55; // 0.70x to 1.25x
-      // small lucky-strike chance (~6%) gives 1.5x damage on top
+      const variance = 0.70 + r() * 0.55;
       const luckyStrike = r() < 0.06 ? 1.5 : 1;
       const baseDamage = attackerStats.str * (1 - mitigation) * variance * luckyStrike;
       const critChance = Math.min(0.30, 0.05 + Math.max(0, attackerStats.spd - defenderStats.spd) / (defenderStats.spd + 200));
       const isCrit = r() < critChance;
       const damage = Math.max(1, Math.round(baseDamage * (isCrit ? 1.7 : 1)));
 
-      if (target === "p1") hp1 = Math.max(0, hp1 - damage);
-      else hp2 = Math.max(0, hp2 - damage);
+      hps[target] = Math.max(0, hps[target] - damage);
 
       events.push({
-        t: isCrit ? "crit" : (who === "pet1" || who === "pet2" ? "pet_attack" : "attack"),
-        attacker: attackerLabel,
+        t: isCrit ? "crit" : (isPet(who) ? "pet_attack" : "attack"),
+        attacker: who,
         target,
         damage,
-        hp1After: hp1,
-        hp2After: hp2,
+        hps: { ...hps },
       });
+
+      if (hps[target] === 0 && isPet(target)) {
+        events.push({ t: "death", attacker: who, target, hps: { ...hps } });
+      }
     }
   }
 
-  const winner: "p1" | "p2" = hp1 > hp2 ? "p1" : "p2";
-  events.push({ t: "end", attacker: winner, target: winner === "p1" ? "p2" : "p1", hp1After: hp1, hp2After: hp2 });
+  const winner: "p1" | "p2" = hps[P1] > hps[P2] ? "p1" : "p2";
+  events.push({ t: "end", attacker: winner, target: winner === "p1" ? P2 : P1, hps: { ...hps } });
 
   return { events, winner, rounds: round };
+}
+
+/** Total stats from base + equipment, but WITHOUT pet bonuses (pets fight independently now). */
+function totalStatsNoPet(p: Player): Stats {
+  const base = baseStats(p.level);
+  let { hp, str, agl, spd } = base;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { bonusFor } = require("./shop") as typeof import("./shop");
+  for (const slot of SLOTS) {
+    const eq = p.equipment[slot];
+    if (eq) {
+      const shopBonus = bonusFor(eq);
+      const b = (shopBonus.hp || shopBonus.str || shopBonus.agl || shopBonus.spd)
+        ? shopBonus
+        : equipBonus(slot, eq.tier);
+      hp += b.hp; str += b.str; agl += b.agl; spd += b.spd;
+    }
+  }
+  return { hp, str, agl, spd };
 }
 
 export function applyWinReward(p: Player, opponentLevel: number): Player {

@@ -50,9 +50,14 @@ export type Player = {
   inventory?: Equipment[];
   ownedPetIds?: string[];
   equipment: Record<EquipSlot, Equipment | null>;
-  pet: Pet | null;
+  /** Active pets that fight beside the player. Max MAX_ACTIVE_PETS. */
+  pets?: Pet[];
+  /** @deprecated Use `pets`. Legacy single-pet field kept for migration only. */
+  pet?: Pet | null;
   guild?: string;
 };
+
+export const MAX_ACTIVE_PETS = 3;
 
 export type BattleEventType =
   | "start"
@@ -60,15 +65,26 @@ export type BattleEventType =
   | "dodge"
   | "crit"
   | "pet_attack"
+  | "death"
   | "end";
+
+/**
+ * Combatant id in a battle.
+ *  "p1" / "p2" — the main character on each side
+ *  "p1_pet_<i>" / "p2_pet_<i>" — i-th active pet on each side (0-indexed)
+ */
+export type CombatantId = string;
 
 export type BattleEvent = {
   t: BattleEventType;
-  attacker: "p1" | "p2" | "pet1" | "pet2";
-  target: "p1" | "p2";
+  attacker: CombatantId;
+  target: CombatantId;
   damage?: number;
-  hp1After: number;
-  hp2After: number;
+  /** HP for every combatant after this event resolves. */
+  hps: Record<CombatantId, number>;
+  /** @deprecated kept for any old persisted lastBattle payloads. */
+  hp1After?: number;
+  hp2After?: number;
   msg?: string;
 };
 

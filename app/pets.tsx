@@ -25,7 +25,6 @@ const PET_COSTS: Record<string, { gold: number; crystals: number }> = {
 
 export default function Pets() {
   const player = useGame((s) => s.player);
-  const setPet = useGame((s) => s.setPet);
   const updatePlayer = useGame((s) => s.updatePlayer);
 
   const buy = (id: string) => {
@@ -36,8 +35,14 @@ export default function Pets() {
       Alert.alert("Not enough", `Need ${cost.gold} 💰${cost.crystals ? ` + ${cost.crystals} 💎` : ""}`);
       return;
     }
-    updatePlayer((p) => ({ ...p, gold: p.gold - cost.gold, crystals: p.crystals - cost.crystals }));
-    setPet({ ...tpl, level: Math.max(1, player.level) });
+    const newPet = { ...tpl, level: Math.max(1, player.level) };
+    updatePlayer((p) => ({
+      ...p,
+      gold: p.gold - cost.gold,
+      crystals: p.crystals - cost.crystals,
+      pets: [...(p.pets ?? []), newPet],
+      pet: newPet,
+    }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 

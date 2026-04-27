@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Pressable, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,13 +8,25 @@ import Svg, { Defs, LinearGradient, Stop, Rect, Polygon } from "react-native-svg
 
 import { useGame } from "../lib/store";
 import { theme } from "../lib/theme";
-import { applyLoss, applyWinReward, totalStats } from "../lib/game";
+import { activePetsOf, applyLoss, applyWinReward, petCombatStatsOf, totalStats } from "../lib/game";
 import { CHARACTER_ASSETS, characterIdFromSeed, petAssetFor, comboAssetFor } from "../lib/assets";
-import type { BattleEvent } from "../lib/types";
+import type { BattleEvent, CombatantId, Pet, Player } from "../lib/types";
+
+type FightSide = "p1" | "p2";
+
+type Combatant = {
+  id: CombatantId;
+  side: FightSide;
+  kind: "main" | "pet";
+  name: string;
+  maxHp: number;
+  charSrc?: ReturnType<typeof comboAssetFor>;
+  petSrc?: ReturnType<typeof petAssetFor>;
+};
 
 export default function BattleScreen() {
   const insets = useSafeAreaInsets();
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { height: winH } = useWindowDimensions();
   const router = useRouter();
   const player = useGame((s) => s.player);
   const last = useGame((s) => s.lastBattle);
@@ -25,26 +37,30 @@ export default function BattleScreen() {
 
   const opponent = opponents.find((o) => o.id === selectedId);
 
+  const combatants = useMemo(() => buildCombatants(player, opponent), [player, opponent]);
+  const initialHps = useMemo(() => {
+    const m: Record<CombatantId, number> = {};
+    for (const c of combatants) m[c.id] = c.maxHp;
+    return m;
+  }, [combatants]);
+
   const [eventIdx, setEventIdx] = useState(0);
-  const [hp1, setHp1] = useState(0);
-  const [hp2, setHp2] = useState(0);
+  const [hps, setHps] = useState<Record<CombatantId, number>>(initialHps);
   const [showResult, setShowResult] = useState(false);
-  const [floatNumbers, setFloatNumbers] = useState<{ id: number; side: "p1" | "p2"; value: string; crit: boolean }[]>([]);
+  const [floats, setFloats] = useState<{ id: number; on: CombatantId; value: string; crit: boolean }[]>([]);
   const [logEntries, setLogEntries] = useState<string[]>([]);
   const [speedMul, setSpeedMul] = useState(1);
   const floatId = useRef(0);
   const rewardsApplied = useRef(false);
 
-  const p1Shake = useRef(new Animated.Value(0)).current;
-  const p2Shake = useRef(new Animated.Value(0)).current;
-
-  const maxHp1 = player ? totalStats(player).hp : 1;
-  const maxHp2 = opponent ? totalStats(opponent).hp : 1;
+  const shakeRefs = useRef<Record<CombatantId, Animated.Value>>({});
+  for (const c of combatants) {
+    if (!shakeRefs.current[c.id]) shakeRefs.current[c.id] = new Animated.Value(0);
+  }
 
   useEffect(() => {
     if (!last || !opponent) return;
-    setHp1(maxHp1);
-    setHp2(maxHp2);
+    setHps(initialHps);
     setEventIdx(0);
     setShowResult(false);
     setLogEntries([]);
@@ -57,33 +73,38 @@ export default function BattleScreen() {
     const ev = last.events[eventIdx];
 
     const tick = setTimeout(() => {
-      setHp1(ev.hp1After);
-      setHp2(ev.hp2After);
+      // Apply HP map from event (resilient against legacy hp1After/hp2After events).
+      if (ev.hps) {
+        setHps({ ...ev.hps });
+      } else if (ev.hp1After !== undefined && ev.hp2After !== undefined) {
+        setHps((cur) => ({ ...cur, p1: ev.hp1After!, p2: ev.hp2After! }));
+      }
 
       if (ev.t === "attack" || ev.t === "crit" || ev.t === "pet_attack") {
-        const side = ev.target;
-        const val = ev.damage ? `${ev.damage}` : "";
-        const isCrit = ev.t === "crit";
         const id = ++floatId.current;
-        setFloatNumbers((cur) => [...cur, { id, side, value: val, crit: isCrit }]);
-        setTimeout(() => setFloatNumbers((cur) => cur.filter((f) => f.id !== id)), 800);
-        const target = side === "p1" ? p1Shake : p2Shake;
-        Animated.sequence([
-          Animated.timing(target, { toValue: side === "p1" ? -8 : 8, duration: 60, useNativeDriver: true, easing: Easing.linear }),
-          Animated.timing(target, { toValue: 0, duration: 100, useNativeDriver: true, easing: Easing.linear }),
-        ]).start();
-        const attackerName = ev.attacker === "p1" ? player.name : ev.attacker === "p2" ? opponent?.name : ev.attacker === "pet1" ? player.pet?.name ?? "Pet" : opponent?.pet?.name ?? "Pet";
-        const targetName = side === "p1" ? player.name : opponent?.name;
-        const verb = isCrit ? "lands a CRIT on" : "hits";
-        setLogEntries((l) => [...l.slice(-3), `${attackerName} ${verb} ${targetName} for ${ev.damage}`]);
-        if (isCrit) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        setFloats((cur) => [...cur, { id, on: ev.target, value: `${ev.damage ?? ""}`, crit: ev.t === "crit" }]);
+        setTimeout(() => setFloats((cur) => cur.filter((f) => f.id !== id)), 800);
+        const shake = shakeRefs.current[ev.target];
+        if (shake) {
+          const dir = combatants.find((c) => c.id === ev.target)?.side === "p1" ? -1 : 1;
+          Animated.sequence([
+            Animated.timing(shake, { toValue: 8 * dir, duration: 60, useNativeDriver: true, easing: Easing.linear }),
+            Animated.timing(shake, { toValue: 0, duration: 100, useNativeDriver: true, easing: Easing.linear }),
+          ]).start();
+        }
+        const verb = ev.t === "crit" ? "lands a CRIT on" : "hits";
+        const aName = nameOf(ev.attacker, combatants);
+        const tName = nameOf(ev.target, combatants);
+        setLogEntries((l) => [...l.slice(-3), `${aName} ${verb} ${tName} for ${ev.damage}`]);
+        if (ev.t === "crit") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
         else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       } else if (ev.t === "dodge") {
         const id = ++floatId.current;
-        setFloatNumbers((cur) => [...cur, { id, side: ev.target, value: "DODGE", crit: false }]);
-        setTimeout(() => setFloatNumbers((cur) => cur.filter((f) => f.id !== id)), 700);
-        const targetName = ev.target === "p1" ? player.name : opponent?.name;
-        setLogEntries((l) => [...l.slice(-3), `${targetName} dodges!`]);
+        setFloats((cur) => [...cur, { id, on: ev.target, value: "DODGE", crit: false }]);
+        setTimeout(() => setFloats((cur) => cur.filter((f) => f.id !== id)), 700);
+        setLogEntries((l) => [...l.slice(-3), `${nameOf(ev.target, combatants)} dodges!`]);
+      } else if (ev.t === "death") {
+        setLogEntries((l) => [...l.slice(-3), `${nameOf(ev.target, combatants)} falls!`]);
       } else if (ev.t === "end") {
         setShowResult(true);
         if (last.winner === "p1") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -113,21 +134,17 @@ export default function BattleScreen() {
   }
 
   const won = last.winner === "p1";
-  const playerSrc = comboAssetFor(
-    player.charClass ?? characterIdFromSeed(player.avatarSeed),
-    player.equipment?.chest?.iconKey,
-    player.equipment?.weapon?.iconKey,
-  ) ?? CHARACTER_ASSETS[characterIdFromSeed(player.avatarSeed)];
-  const oppSrc = comboAssetFor(
-    opponent.charClass ?? characterIdFromSeed(opponent.avatarSeed),
-    opponent.equipment?.chest?.iconKey,
-    opponent.equipment?.weapon?.iconKey,
-  ) ?? CHARACTER_ASSETS[characterIdFromSeed(opponent.avatarSeed)];
 
-  // Available arena vertical space ≈ window - top inset - banners(~46) - hp(~24) - log(~70) - bottom inset.
-  const arenaH = Math.max(140, winH - insets.top - insets.bottom - 46 - 24 - 70 - 16);
-  const charSize = Math.min(190, Math.max(110, arenaH * 0.85));
-  const petSize = charSize * 0.7;
+  const arenaH = Math.max(140, winH - insets.top - insets.bottom - 46 - 56 - 70 - 16);
+  const p1Mains = combatants.filter((c) => c.side === "p1" && c.kind === "main");
+  const p1Pets = combatants.filter((c) => c.side === "p1" && c.kind === "pet");
+  const p2Mains = combatants.filter((c) => c.side === "p2" && c.kind === "main");
+  const p2Pets = combatants.filter((c) => c.side === "p2" && c.kind === "pet");
+  const totalLeft = 1 + p1Pets.length;
+  const totalRight = 1 + p2Pets.length;
+  const slotMaxLeft = Math.max(totalLeft, 2);
+  const slotMaxRight = Math.max(totalRight, 2);
+  const charSize = Math.min(170, Math.max(80, arenaH * 0.78));
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -138,14 +155,14 @@ export default function BattleScreen() {
           <Text style={styles.bannerName} numberOfLines={1}>{player.name}</Text>
         </View>
         <View style={styles.crossWrap}>
-          <Svg width={56} height={56}>
+          <Svg width={48} height={48}>
             <Defs>
               <LinearGradient id="cb" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor="#c44030" />
                 <Stop offset="1" stopColor="#7a1810" />
               </LinearGradient>
             </Defs>
-            <Polygon points="28,0 56,20 56,42 28,56 0,42 0,20" fill="url(#cb)" stroke="#3a0808" strokeWidth="2" />
+            <Polygon points="24,0 48,17 48,36 24,48 0,36 0,17" fill="url(#cb)" stroke="#3a0808" strokeWidth="2" />
           </Svg>
           <Text style={styles.crossX}>⚔</Text>
         </View>
@@ -154,29 +171,52 @@ export default function BattleScreen() {
         </View>
       </View>
 
-      <View style={styles.hpRow}>
-        <HpBar current={hp1} max={maxHp1} side="left" />
-        <View style={{ width: 56 }} />
-        <HpBar current={hp2} max={maxHp2} side="right" />
+      {/* HP bar grids — main on top, pets stacked below, per side */}
+      <View style={styles.hpGridRow}>
+        <View style={styles.hpStack}>
+          {[...p1Mains, ...p1Pets].map((c) => (
+            <SmallHpBar key={c.id} side="left" name={c.name} max={c.maxHp} cur={hps[c.id] ?? 0} kind={c.kind} />
+          ))}
+        </View>
+        <View style={{ width: 12 }} />
+        <View style={styles.hpStack}>
+          {[...p2Mains, ...p2Pets].map((c) => (
+            <SmallHpBar key={c.id} side="right" name={c.name} max={c.maxHp} cur={hps[c.id] ?? 0} kind={c.kind} />
+          ))}
+        </View>
       </View>
 
       <View style={styles.arena}>
         <View style={styles.fighterRow}>
-          <Animated.View style={[styles.fighterLeft, { transform: [{ translateX: p1Shake }] }]}>
-            {player.pet && petAssetFor(player.pet.id) && (
-              <Image source={petAssetFor(player.pet.id)!} style={{ width: petSize, height: petSize, marginRight: -petSize * 0.18 }} contentFit="contain" />
-            )}
-            <Image source={playerSrc} style={{ width: charSize, height: charSize }} contentFit="contain" />
-            {floatNumbers.filter(f => f.side === "p1").map(f => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
-          </Animated.View>
+          <View style={styles.sideCol}>
+            {[...p1Mains, ...p1Pets].map((c) => (
+              <FighterSprite
+                key={c.id}
+                combatant={c}
+                hp={hps[c.id] ?? 0}
+                shake={shakeRefs.current[c.id]}
+                charSize={c.kind === "main" ? charSize : charSize * 0.6}
+                facing="right"
+                slotMax={slotMaxLeft}
+                floats={floats.filter((f) => f.on === c.id)}
+              />
+            ))}
+          </View>
 
-          <Animated.View style={[styles.fighterRight, { transform: [{ translateX: p2Shake }] }]}>
-            <Image source={oppSrc} style={{ width: charSize, height: charSize, transform: [{ scaleX: -1 }] }} contentFit="contain" />
-            {opponent.pet && petAssetFor(opponent.pet.id) && (
-              <Image source={petAssetFor(opponent.pet.id)!} style={{ width: petSize, height: petSize, marginLeft: -petSize * 0.18, transform: [{ scaleX: -1 }] }} contentFit="contain" />
-            )}
-            {floatNumbers.filter(f => f.side === "p2").map(f => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
-          </Animated.View>
+          <View style={styles.sideCol}>
+            {[...p2Mains, ...p2Pets].map((c) => (
+              <FighterSprite
+                key={c.id}
+                combatant={c}
+                hp={hps[c.id] ?? 0}
+                shake={shakeRefs.current[c.id]}
+                charSize={c.kind === "main" ? charSize : charSize * 0.6}
+                facing="left"
+                slotMax={slotMaxRight}
+                floats={floats.filter((f) => f.on === c.id)}
+              />
+            ))}
+          </View>
         </View>
       </View>
 
@@ -194,8 +234,7 @@ export default function BattleScreen() {
         <Pressable style={styles.controlBtn} onPress={() => {
           if (!last) return;
           const lastEv = last.events[last.events.length - 1];
-          setHp1(lastEv.hp1After);
-          setHp2(lastEv.hp2After);
+          if (lastEv.hps) setHps({ ...lastEv.hps });
           setEventIdx(last.events.length);
           setShowResult(true);
           if (!rewardsApplied.current && opponent) {
@@ -234,6 +273,108 @@ export default function BattleScreen() {
   );
 }
 
+function buildCombatants(player: Player, opponent: Player | undefined): Combatant[] {
+  const out: Combatant[] = [];
+  if (!opponent) return out;
+
+  const playerMaxHp = totalStats(player).hp;
+  out.push({
+    id: "p1",
+    side: "p1",
+    kind: "main",
+    name: player.name || "You",
+    maxHp: playerMaxHp,
+    charSrc: comboAssetFor(
+      player.charClass ?? characterIdFromSeed(player.avatarSeed),
+      player.equipment?.chest?.iconKey,
+      player.equipment?.weapon?.iconKey,
+    ) ?? CHARACTER_ASSETS[characterIdFromSeed(player.avatarSeed)],
+  });
+  activePetsOf(player).forEach((pet, i) => {
+    out.push({
+      id: `p1_pet_${i}`,
+      side: "p1",
+      kind: "pet",
+      name: pet.name,
+      maxHp: petCombatStatsOf(player, pet).hp,
+      petSrc: petAssetFor(pet.id),
+    });
+  });
+
+  const oppMaxHp = totalStats(opponent).hp;
+  out.push({
+    id: "p2",
+    side: "p2",
+    kind: "main",
+    name: opponent.name,
+    maxHp: oppMaxHp,
+    charSrc: comboAssetFor(
+      opponent.charClass ?? characterIdFromSeed(opponent.avatarSeed),
+      opponent.equipment?.chest?.iconKey,
+      opponent.equipment?.weapon?.iconKey,
+    ) ?? CHARACTER_ASSETS[characterIdFromSeed(opponent.avatarSeed)],
+  });
+  activePetsOf(opponent).forEach((pet, i) => {
+    out.push({
+      id: `p2_pet_${i}`,
+      side: "p2",
+      kind: "pet",
+      name: pet.name,
+      maxHp: petCombatStatsOf(opponent, pet).hp,
+      petSrc: petAssetFor(pet.id),
+    });
+  });
+
+  return out;
+}
+
+function nameOf(id: CombatantId, combatants: Combatant[]): string {
+  return combatants.find((c) => c.id === id)?.name ?? id;
+}
+
+function FighterSprite({
+  combatant,
+  hp,
+  shake,
+  charSize,
+  facing,
+  slotMax,
+  floats,
+}: {
+  combatant: Combatant;
+  hp: number;
+  shake?: Animated.Value;
+  charSize: number;
+  facing: "left" | "right";
+  slotMax: number;
+  floats: { id: number; value: string; crit: boolean }[];
+}) {
+  const dead = hp <= 0;
+  const flip = facing === "left";
+  const src = combatant.kind === "main" ? combatant.charSrc : combatant.petSrc;
+  return (
+    <Animated.View style={[
+      styles.fighterSlot,
+      { flex: 1 / slotMax, opacity: dead ? 0.35 : 1, transform: [{ translateX: shake ?? new Animated.Value(0) }] },
+    ]}>
+      {src && (
+        <Image
+          source={src}
+          style={{
+            width: charSize,
+            height: charSize,
+            transform: flip ? [{ scaleX: -1 }] : undefined,
+          }}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+        />
+      )}
+      {dead && <Text style={styles.deadX}>✕</Text>}
+      {floats.map((f) => <FloatNum key={f.id} value={f.value} crit={f.crit} />)}
+    </Animated.View>
+  );
+}
+
 function BambooBg() {
   return (
     <Svg style={StyleSheet.absoluteFill}>
@@ -255,14 +396,19 @@ function BambooBg() {
   );
 }
 
-function HpBar({ current, max, side }: { current: number; max: number; side: "left" | "right" }) {
-  const pct = Math.max(0, Math.min(1, current / Math.max(1, max)));
+function SmallHpBar({ side, name, max, cur, kind }: { side: "left" | "right"; name: string; max: number; cur: number; kind: "main" | "pet" }) {
+  const pct = Math.max(0, Math.min(1, cur / Math.max(1, max)));
   return (
-    <View style={[styles.hpBarOuter, side === "right" && { transform: [{ scaleX: -1 }] }]}>
-      <View style={[styles.hpFill, { width: `${pct * 100}%` }]} />
-      <View style={side === "right" ? { transform: [{ scaleX: -1 }] } : undefined}>
-        <Text style={styles.hpLabel}>{current} / {max}</Text>
+    <View style={[styles.hpRow, side === "right" && { flexDirection: "row-reverse" }]}>
+      <Text style={[styles.hpName, kind === "pet" && styles.hpNamePet]} numberOfLines={1}>{name}</Text>
+      <View style={[styles.hpBarOuter, kind === "pet" && { height: 8 }]}>
+        <View style={[
+          styles.hpFill,
+          { width: `${pct * 100}%`, backgroundColor: kind === "pet" ? "#9050d0" : "#e8a020" },
+          side === "right" && { right: 0, left: undefined },
+        ]} />
       </View>
+      <Text style={styles.hpVal}>{cur}/{max}</Text>
     </View>
   );
 }
@@ -272,7 +418,7 @@ function FloatNum({ value, crit }: { value: string; crit: boolean }) {
   const op = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(ty, { toValue: -60, duration: 700, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+      Animated.timing(ty, { toValue: -50, duration: 700, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
       Animated.timing(op, { toValue: 0, duration: 700, useNativeDriver: true, easing: Easing.in(Easing.quad) }),
     ]).start();
   }, []);
@@ -282,7 +428,7 @@ function FloatNum({ value, crit }: { value: string; crit: boolean }) {
         styles.floatNum,
         crit && styles.floatCrit,
         value === "DODGE" && styles.floatDodge,
-        { transform: [{ translateY: ty as any }], opacity: op as any },
+        { transform: [{ translateY: ty as unknown as number }], opacity: op as unknown as number },
       ]}
     >
       {value}
@@ -293,10 +439,11 @@ function FloatNum({ value, crit }: { value: string; crit: boolean }) {
 function eventDelay(ev: BattleEvent): number {
   switch (ev.t) {
     case "start": return 250;
-    case "attack": case "pet_attack": return 380;
-    case "crit": return 500;
-    case "dodge": return 320;
-    case "end": return 400;
+    case "attack": case "pet_attack": return 320;
+    case "crit": return 460;
+    case "dodge": return 280;
+    case "death": return 280;
+    case "end": return 360;
   }
 }
 
@@ -310,7 +457,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderColor: theme.bannerDark,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   bannerRight: {
     flex: 1,
@@ -319,87 +466,103 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderColor: theme.bannerDark,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   bannerName: {
     color: "#fff8d8",
     fontWeight: "900",
-    fontSize: 14,
+    fontSize: 13,
     letterSpacing: 1,
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   crossWrap: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -10,
+    marginTop: -8,
     zIndex: 5,
   },
   crossX: {
     position: "absolute",
     color: "#fff8d8",
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "900",
+  },
+  hpGridRow: {
+    flexDirection: "row",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  hpStack: {
+    flex: 1,
+    gap: 2,
   },
   hpRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 4,
+  },
+  hpName: {
+    color: "#fff8d8",
+    fontSize: 9,
+    fontWeight: "900",
+    minWidth: 40,
+    maxWidth: 80,
+  },
+  hpNamePet: {
+    color: "#d8c8ff",
+    fontSize: 8,
   },
   hpBarOuter: {
     flex: 1,
-    height: 16,
-    backgroundColor: "#5a2a1a",
-    borderWidth: 2,
-    borderColor: "#3a1810",
+    height: 12,
+    backgroundColor: "#3a1810",
+    borderWidth: 1.5,
+    borderColor: "#1a0808",
     borderRadius: 3,
     overflow: "hidden",
-    justifyContent: "center",
-    paddingHorizontal: 6,
   },
   hpFill: {
     position: "absolute",
     left: 0, top: 0, bottom: 0,
-    backgroundColor: "#e8a020",
   },
-  hpLabel: {
+  hpVal: {
     color: "#fff8d8",
-    fontSize: 10,
-    fontWeight: "900",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    fontSize: 9,
+    fontWeight: "800",
+    minWidth: 50,
+    textAlign: "right",
   },
-  arena: {
-    flex: 1,
-    paddingHorizontal: 8,
-  },
+  arena: { flex: 1, paddingHorizontal: 4 },
   fighterRow: {
     flex: 1,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-end",
     paddingBottom: 12,
   },
-  fighterLeft: {
+  sideCol: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 0,
-    flex: 1,
-    justifyContent: "flex-start",
-    position: "relative",
+    justifyContent: "center",
+    gap: 4,
   },
-  fighterRight: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 0,
-    flex: 1,
+  fighterSlot: {
+    alignItems: "center",
     justifyContent: "flex-end",
     position: "relative",
+  },
+  deadX: {
+    position: "absolute",
+    fontSize: 50,
+    color: "#a82820",
+    fontWeight: "900",
+    textShadowColor: "#000",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
   },
   logPanel: {
     backgroundColor: "rgba(40,28,12,0.85)",
@@ -496,7 +659,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: "center",
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "900",
     color: "#ffe080",
     textShadowColor: "rgba(0,0,0,0.85)",
@@ -504,11 +667,11 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   floatCrit: {
-    fontSize: 44,
+    fontSize: 36,
     color: "#ff5040",
   },
   floatDodge: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#a8e0ff",
   },
   fallback: {
